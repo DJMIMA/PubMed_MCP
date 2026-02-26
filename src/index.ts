@@ -65,24 +65,23 @@ async function startHttpServer(port: number): Promise<void> {
     },
   );
 
-  // ── MCP transport ──────────────────────────────────────────────────────
-  // One transport instance per server process (stateless — Cloud Run can
-  // spin up multiple instances; sessions are not shared across them).
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined, // stateless mode
-  });
-
-  const server = createServer();
-  await server.connect(transport);
-
   // MCP Streamable HTTP — handles both POST (client→server) and GET (SSE stream).
+  // SDK v1.x: stateless transports cannot be reused across requests.
+  // A new transport and server instance must be created for every request.
   app.all('/mcp', (req, res) => {
-    transport.handleRequest(req, res, req.body as unknown).catch((err) => {
-      process.stderr.write(`[http] handleRequest error: ${String(err)}\n`);
-      if (!res.headersSent) {
-        res.status(500).json({ error: 'Internal server error' });
-      }
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined, // stateless mode
     });
+    const mcpServer = createServer();
+    mcpServer
+      .connect(transport)
+      .then(() => transport.handleRequest(req, res, req.body as unknown))
+      .catch((err) => {
+        process.stderr.write(`[http] handleRequest error: ${String(err)}\n`);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Internal server error' });
+        }
+      });
   });
 
   // Health check endpoint — used by Cloud Run readiness/liveness probes.
