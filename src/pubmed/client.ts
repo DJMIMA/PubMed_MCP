@@ -70,7 +70,7 @@ export class NcbiClient {
 
   constructor(apiKey?: string) {
     this.apiKey = apiKey ?? process.env.NCBI_API_KEY;
-    const rps = this.apiKey ? 10 : 3;
+    const rps = this.apiKey ? 9 : 3; // 9 req/s (safety margin below NCBI's 10 req/s limit)
     this.rateLimiter = new RateLimiter(rps);
   }
 

@@ -9,9 +9,15 @@
  *   node dist/index.js          # production
  *   npm run dev                  # development (tsx)
  *
- * Environment:
- *   NCBI_API_KEY — optional, increases rate limits from 3 to 10 req/sec
+ * Environment variables (set in .env, shell, systemd EnvironmentFile, Docker -e, etc.):
+ *   NCBI_API_KEY — NCBI API key; raises rate limit from 3 → 9 req/s
+ *                  Register free at https://www.ncbi.nlm.nih.gov/account/
  */
+
+// Load .env file if present. Silently skipped when the file doesn't exist
+// (e.g. production servers where env vars are injected by the runtime).
+import { config as loadDotenv } from 'dotenv';
+loadDotenv();
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createServer } from './server.js';
