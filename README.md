@@ -193,8 +193,15 @@ echo -n "your_ncbi_api_key" | \
 ### ステップ 4 — コンテナイメージをビルドしてプッシュ
 
 Cloud Build を使うとローカルに Docker をインストールせずにビルドできます。
+`gcloud builds submit` はカレントディレクトリのファイルを Cloud Build に送信するため、
+**事前にリポジトリをクローンしておく必要があります。**
 
 ```bash
+# リポジトリをクローンしてディレクトリに移動
+git clone https://github.com/DJMIMA/PubMed_MCP.git
+cd PubMed_MCP
+
+# Cloud Build でビルド（ローカルに Docker 不要）
 gcloud builds submit \
   --region=asia-northeast1 \
   --tag asia-northeast1-docker.pkg.dev/MY_PROJECT_ID/pubmed-mcp/server:latest
