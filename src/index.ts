@@ -23,6 +23,7 @@
 // Load .env file if present. Silently skipped in production where env vars
 // are injected by the runtime (Cloud Run, Docker --env, etc.).
 import { config as loadDotenv } from 'dotenv';
+import type { Request, Response, NextFunction } from 'express';
 loadDotenv();
 
 import { createServer } from './server.js';
@@ -47,6 +48,22 @@ async function startHttpServer(port: number): Promise<void> {
 
   const app = express();
   app.use(express.json());
+
+  // Return JSON (not HTML) for malformed request bodies.
+  app.use(
+    (
+      err: Error & { type?: string; status?: number },
+      _req: Request,
+      res: Response,
+      next: NextFunction,
+    ) => {
+      if (err.type === 'entity.parse.failed') {
+        res.status(400).json({ error: 'Invalid JSON body' });
+        return;
+      }
+      next(err);
+    },
+  );
 
   // ── MCP transport ──────────────────────────────────────────────────────
   // One transport instance per server process (stateless — Cloud Run can

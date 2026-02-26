@@ -253,11 +253,13 @@ CLOUD_RUN_URL=$(gcloud run services describe pubmed-mcp \
 curl "$CLOUD_RUN_URL/health"
 # → ok
 
-# MCP エンドポイント
+# MCP エンドポイント（ヒアドキュメントでクォート問題を回避）
 curl "$CLOUD_RUN_URL/mcp" \
   -X POST \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.0.1"}}}'
+  -d @- <<'EOF'
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.0.1"}}}
+EOF
 ```
 
 ---
