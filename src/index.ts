@@ -18,10 +18,6 @@
  *   NCBI_API_KEY — NCBI API key; raises rate limit from 3 → 9 req/s
  *                  Register free at https://www.ncbi.nlm.nih.gov/account/
  *   PORT         — When set, enables HTTP mode on the specified port.
- *   MCP_API_KEY  — Static bearer token for HTTP mode authentication.
- *                  When set, all /mcp requests must include:
- *                    Authorization: Bearer <MCP_API_KEY>
- *                  When unset, authentication is skipped (local dev only).
  */
 
 // Load .env file if present. Silently skipped in production where env vars
@@ -45,62 +41,12 @@ async function main(): Promise<void> {
 
 async function startHttpServer(port: number): Promise<void> {
   const { default: express } = await import('express');
-  const { timingSafeEqual } = await import('node:crypto');
   const { StreamableHTTPServerTransport } = await import(
     '@modelcontextprotocol/sdk/server/streamableHttp.js'
   );
 
   const app = express();
   app.use(express.json());
-
-  // ── API key authentication middleware ──────────────────────────────────
-  // Protects /mcp with a static bearer token stored in MCP_API_KEY.
-  // /health is intentionally left open for Cloud Run readiness probes.
-  const MCP_API_KEY = process.env.MCP_API_KEY;
-
-  if (!MCP_API_KEY) {
-    process.stderr.write(
-      '[warn] MCP_API_KEY is not set — /mcp endpoint is unprotected\n',
-    );
-  }
-
-  app.use('/mcp', (req, res, next) => {
-    if (!MCP_API_KEY) {
-      // No key configured: allow all (local dev without auth)
-      next();
-      return;
-    }
-
-    const authHeader = req.headers['authorization'];
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.setHeader('WWW-Authenticate', 'Bearer realm="PubMed MCP"');
-      res.status(401).json({ error: 'Authorization required' });
-      return;
-    }
-
-    const provided = authHeader.slice(7); // strip "Bearer "
-
-    // Constant-time comparison to prevent timing attacks
-    let valid = false;
-    try {
-      const a = Buffer.from(provided);
-      const b = Buffer.from(MCP_API_KEY);
-      valid = a.byteLength === b.byteLength && timingSafeEqual(a, b);
-    } catch {
-      valid = false;
-    }
-
-    if (!valid) {
-      res.setHeader(
-        'WWW-Authenticate',
-        'Bearer realm="PubMed MCP", error="invalid_token"',
-      );
-      res.status(401).json({ error: 'Invalid API key' });
-      return;
-    }
-
-    next();
-  });
 
   // ── MCP transport ──────────────────────────────────────────────────────
   // One transport instance per server process (stateless — Cloud Run can
@@ -132,11 +78,7 @@ async function startHttpServer(port: number): Promise<void> {
     process.stderr.write(`PubMed MCP server running on HTTP port ${port}\n`);
     process.stderr.write(`  MCP endpoint : http://localhost:${port}/mcp\n`);
     process.stderr.write(`  Health check : http://localhost:${port}/health\n`);
-    process.stderr.write(
-      MCP_API_KEY
-        ? '  Auth         : API key required\n'
-        : '  Auth         : disabled (MCP_API_KEY not set)\n',
-    );
+    process.stderr.write('  Auth         : disabled\n');
   });
 
   const shutdown = (): void => {
