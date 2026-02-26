@@ -116,7 +116,6 @@ response = client.beta.messages.create(
         "type": "url",
         "url": "https://<your-cloud-run-url>/mcp",
         "name": "pubmed",
-        "authorization_token": "<MCP_API_KEY>"
     }],
     tools=[{"type": "mcp_toolset", "mcp_server_name": "pubmed"}],
     betas=["mcp-client-2025-11-20"]
@@ -150,16 +149,14 @@ PORT=8080 npm run dev
 このサーバーは Docker コンテナとして Google Cloud Run にデプロイできます。
 `PORT` 環境変数が設定されると自動的に HTTP モードで起動し、Streamable HTTP トランスポートで MCP クライアントと通信します。
 
-**認証の仕組み:**
-アプリ層でランダム生成した静的 API キー（`MCP_API_KEY`）を Bearer トークンとして使います。
 Cloud Run は `--allow-unauthenticated` でデプロイし、インターネットから直接アクセス可能にします。
-Claude Desktop・Claude.ai（Web）・Claude Android・Anthropic API すべてから `Authorization: Bearer <キー>` ヘッダーを付けて接続できます。
+Claude Desktop・Claude.ai（Web）・Claude Android・Anthropic API すべてから認証なしで接続できます。
 
 ```
 Claude Desktop / Claude.ai Web / Claude Android / Anthropic API
-        ↓  Authorization: Bearer <MCP_API_KEY>
+        ↓
   Cloud Run（--allow-unauthenticated）
-        ↓  キーが一致すれば通す、不一致なら 401
+        ↓
   MCP ハンドラ
 ```
 
@@ -179,7 +176,7 @@ gcloud services enable \
   run.googleapis.com \
   artifactregistry.googleapis.com \
   cloudbuild.googleapis.com \
-  secretmanager.googleapis.com
+  secretmanager.googleapis.com  # NCBI_API_KEY を管理する場合のみ
 ```
 
 ### ステップ 2 — Artifact Registry リポジトリを作成（初回のみ）
@@ -193,7 +190,7 @@ gcloud artifacts repositories create pubmed-mcp \
 
 ### ステップ 3 — シークレットを Secret Manager に登録
 
-APIキーをコマンド履歴やログに残さないために Secret Manager を使います。
+NCBI API キーをコマンド履歴やログに残さないために Secret Manager を使います。
 
 ```bash
 # NCBI API キーを登録
@@ -201,15 +198,6 @@ echo -n "your_ncbi_api_key" | \
   gcloud secrets create ncbi-api-key \
     --data-file=- \
     --replication-policy=automatic
-
-# MCP API キーを生成して登録（このキーを MCP クライアントに設定する）
-openssl rand -hex 32 | \
-  gcloud secrets create mcp-api-key \
-    --data-file=- \
-    --replication-policy=automatic
-
-# 登録した MCP API キーを確認（クライアント設定時に必要）
-gcloud secrets versions access latest --secret=mcp-api-key
 ```
 
 ### ステップ 4 — コンテナイメージをビルドしてプッシュ
@@ -249,7 +237,7 @@ gcloud run deploy pubmed-mcp \
   --cpu 1 \
   --timeout 300 \
   --allow-unauthenticated \
-  --set-secrets NCBI_API_KEY=ncbi-api-key:latest,MCP_API_KEY=mcp-api-key:latest
+  --set-secrets NCBI_API_KEY=ncbi-api-key:latest
 ```
 
 デプロイ後に表示される URL（例: `https://pubmed-mcp-xxxx-an.a.run.app`）をメモしてください。
@@ -261,17 +249,14 @@ CLOUD_RUN_URL=$(gcloud run services describe pubmed-mcp \
   --region asia-northeast1 \
   --format='value(status.url)')
 
-MCP_API_KEY=$(gcloud secrets versions access latest --secret=mcp-api-key)
-
-# ヘルスチェック（認証不要）
+# ヘルスチェック
 curl "$CLOUD_RUN_URL/health"
 # → ok
 
-# MCP エンドポイント（API キーが必要）
+# MCP エンドポイント
 curl "$CLOUD_RUN_URL/mcp" \
   -X POST \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $MCP_API_KEY" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.0.1"}}}'
 ```
 
@@ -279,7 +264,7 @@ curl "$CLOUD_RUN_URL/mcp" \
 
 ### クライアント別の接続設定
 
-デプロイ後、各クライアントに Cloud Run URL と MCP API キーを設定します。
+デプロイ後、各クライアントに Cloud Run URL を設定します。
 
 **Claude Desktop (`claude_desktop_config.json`)**
 
@@ -288,10 +273,7 @@ curl "$CLOUD_RUN_URL/mcp" \
   "mcpServers": {
     "pubmed-remote": {
       "type": "streamable-http",
-      "url": "https://pubmed-mcp-xxxx-an.a.run.app/mcp",
-      "headers": {
-        "Authorization": "Bearer <MCP_API_KEY>"
-      }
+      "url": "https://pubmed-mcp-xxxx-an.a.run.app/mcp"
     }
   }
 }
@@ -304,10 +286,7 @@ curl "$CLOUD_RUN_URL/mcp" \
   "mcpServers": {
     "pubmed-remote": {
       "type": "streamable-http",
-      "url": "https://pubmed-mcp-xxxx-an.a.run.app/mcp",
-      "headers": {
-        "Authorization": "Bearer <MCP_API_KEY>"
-      }
+      "url": "https://pubmed-mcp-xxxx-an.a.run.app/mcp"
     }
   }
 }
@@ -318,12 +297,11 @@ curl "$CLOUD_RUN_URL/mcp" \
 1. [claude.ai](https://claude.ai) を開き、**Settings → Integrations** に移動
 2. **Add custom integration** をクリック
 3. URL に `https://pubmed-mcp-xxxx-an.a.run.app/mcp` を入力
-4. サーバーが `401 WWW-Authenticate: Bearer` を返すので、表示されるフィールドに `<MCP_API_KEY>` を入力
 
 **Claude Android**
 
 1. アプリを開き、**Settings → Integrations** に移動（表示されない場合は未対応の版）
-2. Web 版と同じ手順で URL と API キーを設定
+2. Web 版と同じ手順で URL を設定
 
 **Anthropic API（Python）**
 
@@ -339,7 +317,6 @@ response = client.beta.messages.create(
         "type": "url",
         "url": "https://pubmed-mcp-xxxx-an.a.run.app/mcp",
         "name": "pubmed",
-        "authorization_token": "<MCP_API_KEY>"
     }],
     tools=[{"type": "mcp_toolset", "mcp_server_name": "pubmed"}],
     betas=["mcp-client-2025-11-20"]
@@ -363,19 +340,6 @@ gcloud run services update pubmed-mcp \
   --image asia-northeast1-docker.pkg.dev/MY_PROJECT_ID/pubmed-mcp/server:latest
 ```
 
-### API キーをローテーションする
-
-```bash
-# 新しいキーを生成して Secret Manager に新バージョンとして追加
-openssl rand -hex 32 | \
-  gcloud secrets versions add mcp-api-key --data-file=-
-
-# Cloud Run に新バージョンを反映（再デプロイ不要）
-gcloud run services update pubmed-mcp \
-  --region asia-northeast1 \
-  --set-secrets MCP_API_KEY=mcp-api-key:latest
-```
-
 ---
 
 ## 開発コマンド
@@ -396,7 +360,6 @@ npm run lint       # ESLint を実行
 |------|------|------|
 | `NCBI_API_KEY` | 任意 | NCBIのAPIキー。設定するとレートリミットが 3 → 9 req/s になる |
 | `PORT` | 任意 | 設定するとHTTPモードで起動。Cloud Run はこの変数を自動で注入する |
-| `MCP_API_KEY` | 本番必須 | HTTPモードで `/mcp` を保護する静的ベアラートークン。未設定時は認証なし（ローカル開発専用） |
 
 `.env` ファイルを使う場合は `.env.example` をコピーして編集してください。
 本番環境では Cloud Run の `--set-secrets` で Secret Manager から渡してください。
