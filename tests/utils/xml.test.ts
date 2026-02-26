@@ -1,0 +1,234 @@
+/**
+ * Unit tests for XML parsing utilities.
+ */
+
+import { describe, it, expect } from 'vitest';
+import { extractText, parsePubmedEfetchXml, parsePmcEfetchXml } from '../../src/utils/xml.js';
+
+describe('extractText', () => {
+  it('returns a string as-is', () => {
+    expect(extractText('hello world')).toBe('hello world');
+  });
+
+  it('converts a number to string', () => {
+    expect(extractText(42)).toBe('42');
+  });
+
+  it('returns empty string for null/undefined', () => {
+    expect(extractText(null)).toBe('');
+    expect(extractText(undefined)).toBe('');
+  });
+
+  it('extracts #text from an object node', () => {
+    const node = { '#text': 'article title', _someAttr: 'ignored' };
+    expect(extractText(node)).toBe('article title');
+  });
+
+  it('concatenates text from nested objects', () => {
+    const node = { italic: 'important', '#text': 'some ' };
+    const result = extractText(node);
+    expect(result).toContain('some');
+    expect(result).toContain('important');
+  });
+
+  it('handles arrays by joining', () => {
+    expect(extractText(['foo', 'bar'])).toBe('foo bar');
+  });
+});
+
+describe('parsePubmedEfetchXml', () => {
+  const MINIMAL_XML = `<?xml version="1.0"?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM">
+      <PMID Version="1">99999</PMID>
+      <Article PubModel="Print">
+        <Journal>
+          <JournalIssue CitedMedium="Print">
+            <Volume>10</Volume>
+            <PubDate><Year>2023</Year></PubDate>
+          </JournalIssue>
+          <Title>Test Journal</Title>
+          <ISOAbbreviation>Test J</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>A test article title</ArticleTitle>
+        <Abstract>
+          <AbstractText>This is the abstract.</AbstractText>
+        </Abstract>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <LastName>Doe</LastName>
+            <ForeName>Jane</ForeName>
+            <Initials>J</Initials>
+          </Author>
+        </AuthorList>
+        <Language>eng</Language>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+        </PublicationTypeList>
+      </Article>
+    </MedlineCitation>
+    <PubmedData>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">99999</ArticleId>
+        <ArticleId IdType="doi">10.1234/test.99999</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+</PubmedArticleSet>`;
+
+  it('parses PMID from article', () => {
+    const articles = parsePubmedEfetchXml(MINIMAL_XML);
+    expect(articles).toHaveLength(1);
+    expect(articles[0].identifiers.pmid).toBe('99999');
+  });
+
+  it('parses DOI from ArticleIdList', () => {
+    const articles = parsePubmedEfetchXml(MINIMAL_XML);
+    expect(articles[0].identifiers.doi).toBe('10.1234/test.99999');
+  });
+
+  it('parses article title', () => {
+    const articles = parsePubmedEfetchXml(MINIMAL_XML);
+    expect(articles[0].title).toBe('A test article title');
+  });
+
+  it('parses abstract text', () => {
+    const articles = parsePubmedEfetchXml(MINIMAL_XML);
+    expect(articles[0].abstract).toContain('This is the abstract.');
+  });
+
+  it('parses author information', () => {
+    const articles = parsePubmedEfetchXml(MINIMAL_XML);
+    const author = articles[0].authors[0];
+    expect(author.last_name).toBe('Doe');
+    expect(author.fore_name).toBe('Jane');
+    expect(author.initials).toBe('J');
+  });
+
+  it('parses journal information', () => {
+    const articles = parsePubmedEfetchXml(MINIMAL_XML);
+    expect(articles[0].journal.title).toBe('Test Journal');
+    expect(articles[0].journal.iso_abbreviation).toBe('Test J');
+  });
+
+  it('parses publication year', () => {
+    const articles = parsePubmedEfetchXml(MINIMAL_XML);
+    expect(articles[0].publication_date.year).toBe('2023');
+  });
+
+  it('returns empty array for empty article set', () => {
+    const xml = '<?xml version="1.0"?><PubmedArticleSet></PubmedArticleSet>';
+    const articles = parsePubmedEfetchXml(xml);
+    expect(articles).toHaveLength(0);
+  });
+
+  it('handles structured abstract with labels', () => {
+    const xml = `<?xml version="1.0"?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM">
+      <PMID Version="1">11111</PMID>
+      <Article PubModel="Print">
+        <Journal>
+          <JournalIssue CitedMedium="Print">
+            <PubDate><Year>2022</Year></PubDate>
+          </JournalIssue>
+          <Title>J</Title>
+          <ISOAbbreviation>J</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>Structured abstract test</ArticleTitle>
+        <Abstract>
+          <AbstractText Label="BACKGROUND" NlmCategory="BACKGROUND">Background text here.</AbstractText>
+          <AbstractText Label="METHODS" NlmCategory="METHODS">Methods text here.</AbstractText>
+        </Abstract>
+        <AuthorList CompleteYN="Y"/>
+        <Language>eng</Language>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+        </PublicationTypeList>
+      </Article>
+    </MedlineCitation>
+    <PubmedData>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">11111</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+</PubmedArticleSet>`;
+
+    const articles = parsePubmedEfetchXml(xml);
+    expect(articles[0].abstract).toContain('BACKGROUND: Background text here.');
+    expect(articles[0].abstract).toContain('METHODS: Methods text here.');
+  });
+});
+
+describe('parsePmcEfetchXml', () => {
+  const MINIMAL_PMC_XML = `<?xml version="1.0"?>
+<!DOCTYPE pmc-articleset PUBLIC "-//NLM//DTD NCBI Article Set//EN" "">
+<pmc-articleset>
+  <article article-type="research-article">
+    <front>
+      <article-meta>
+        <article-id pub-id-type="pmcid">9583675</article-id>
+        <article-id pub-id-type="pmid">36275749</article-id>
+        <article-id pub-id-type="doi">10.3389/fimmu.2022.960920</article-id>
+        <title-group>
+          <article-title>A PMC test article</article-title>
+        </title-group>
+        <abstract>
+          <p>This is a simple abstract.</p>
+        </abstract>
+      </article-meta>
+    </front>
+    <body>
+      <sec id="s1">
+        <title>Introduction</title>
+        <p>The introduction paragraph goes here.</p>
+      </sec>
+      <sec id="s2">
+        <title>Methods</title>
+        <p>Methods are described here.</p>
+      </sec>
+    </body>
+  </article>
+</pmc-articleset>`;
+
+  it('parses PMCID with PMC prefix', () => {
+    const articles = parsePmcEfetchXml(MINIMAL_PMC_XML);
+    expect(articles).toHaveLength(1);
+    expect(articles[0].identifiers.pmcid).toBe('PMC9583675');
+  });
+
+  it('parses PMID', () => {
+    const articles = parsePmcEfetchXml(MINIMAL_PMC_XML);
+    expect(articles[0].identifiers.pmid).toBe('36275749');
+  });
+
+  it('parses DOI', () => {
+    const articles = parsePmcEfetchXml(MINIMAL_PMC_XML);
+    expect(articles[0].doi).toBe('10.3389/fimmu.2022.960920');
+  });
+
+  it('parses article title', () => {
+    const articles = parsePmcEfetchXml(MINIMAL_PMC_XML);
+    expect(articles[0].title).toBe('A PMC test article');
+  });
+
+  it('parses abstract', () => {
+    const articles = parsePmcEfetchXml(MINIMAL_PMC_XML);
+    expect(articles[0].abstract).toContain('simple abstract');
+  });
+
+  it('includes section titles in full_text', () => {
+    const articles = parsePmcEfetchXml(MINIMAL_PMC_XML);
+    expect(articles[0].full_text).toContain('Introduction');
+    expect(articles[0].full_text).toContain('Methods');
+  });
+
+  it('includes paragraph text in full_text', () => {
+    const articles = parsePmcEfetchXml(MINIMAL_PMC_XML);
+    expect(articles[0].full_text).toContain('introduction paragraph');
+    expect(articles[0].full_text).toContain('Methods are described');
+  });
+});
