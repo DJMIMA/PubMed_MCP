@@ -69,7 +69,9 @@ export class NcbiClient {
   private readonly rateLimiter: RateLimiter;
 
   constructor(apiKey?: string) {
-    this.apiKey = apiKey ?? process.env.NCBI_API_KEY;
+    // Trim whitespace/newlines that can sneak in from Secret Manager or .env files.
+    const raw = apiKey ?? process.env.NCBI_API_KEY;
+    this.apiKey = raw?.trim() || undefined;
     const rps = this.apiKey ? 9 : 3; // 9 req/s (safety margin below NCBI's 10 req/s limit)
     this.rateLimiter = new RateLimiter(rps);
   }
