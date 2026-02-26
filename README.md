@@ -245,6 +245,9 @@ gcloud run deploy pubmed-mcp \
 ### ステップ 6 — 動作確認
 
 ```bash
+**Linux / macOS (bash)**
+
+```bash
 CLOUD_RUN_URL=$(gcloud run services describe pubmed-mcp \
   --region asia-northeast1 \
   --format='value(status.url)')
@@ -260,6 +263,28 @@ curl "$CLOUD_RUN_URL/mcp" \
   -d @- <<'EOF'
 {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.0.1"}}}
 EOF
+```
+
+**Windows（コマンドプロンプト）**
+
+```cmd
+:: %CLOUD_RUN_URL% に URL を設定してから実行
+set CLOUD_RUN_URL=https://pubmed-mcp-xxxx-an.a.run.app
+
+curl "%CLOUD_RUN_URL%/health"
+
+curl "%CLOUD_RUN_URL%/mcp" -X POST -H "Content-Type: application/json" -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"0.0.1\"}}}"
+```
+
+**Windows（PowerShell）**
+
+```powershell
+$CLOUD_RUN_URL = "https://pubmed-mcp-xxxx-an.a.run.app"
+
+curl.exe "$CLOUD_RUN_URL/health"
+
+curl.exe "$CLOUD_RUN_URL/mcp" -X POST -H "Content-Type: application/json" `
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.0.1"}}}'
 ```
 
 ---
