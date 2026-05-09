@@ -374,8 +374,8 @@ function extractPmcBackText(back: any): string {
   if (!back) return '';
   const parts: string[] = [];
 
-  const refList = back?.['ref-list'];
-  if (refList) {
+  const refLists = findNodesByKey(back, 'ref-list');
+  for (const refList of refLists) {
     const title = extractText(refList?.title);
     if (title) parts.push(title);
     const refs = asArray(refList?.ref);
@@ -471,7 +471,10 @@ export function extractText(node: unknown): string {
 function normalizePmcInlineXml(xml: string): string {
   let normalized = xml;
   for (const tag of PMC_INLINE_TAGS_TO_UNWRAP) {
-    const tagPattern = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'gi');
+    const tagPattern = new RegExp(
+      `<${tag}\\b(?![^>]*\\/\\s*>)[^>]*>([\\s\\S]*?)<\\/${tag}>`,
+      'gi'
+    );
     let previous: string;
     do {
       previous = normalized;
@@ -489,4 +492,20 @@ export function cleanPmcText(text: string): string {
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+function findNodesByKey(node: unknown, key: string): any[] {
+  if (!node || typeof node !== 'object') return [];
+
+  if (Array.isArray(node)) {
+    return node.flatMap((item) => findNodesByKey(item, key));
+  }
+
+  const obj = node as Record<string, unknown>;
+  const matches = asArray(obj[key]);
+  const nested = Object.entries(obj)
+    .filter(([childKey]) => !childKey.startsWith('_') && childKey !== key)
+    .flatMap(([, value]) => findNodesByKey(value, key));
+
+  return [...matches, ...nested];
 }

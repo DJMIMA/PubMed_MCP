@@ -287,4 +287,92 @@ describe('parsePmcEfetchXml', () => {
     expect(articles[0].abstract).not.toContain('+ +');
     expect(articles[0].full_text).toContain('Vd2+ cells remained detectable.');
   });
+
+  it('does not corrupt Frontiers-style XML with self-closing uri tags', () => {
+    const xml = `<?xml version="1.0"?>
+<pmc-articleset>
+  <article>
+    <front>
+      <article-meta>
+        <article-id pub-id-type="pmcid">10808317</article-id>
+        <article-id pub-id-type="pmid">38274800</article-id>
+        <article-id pub-id-type="doi">10.3389/fimmu.2023.1282758</article-id>
+        <title-group>
+          <article-title>Gamma/delta T cells as cellular vehicles for anti-tumor immunity</article-title>
+        </title-group>
+        <contrib-group>
+          <contrib contrib-type="author">
+            <name><surname>Wang</surname></name>
+            <uri xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://loop.frontiersin.org/people/1710879"/>
+          </contrib>
+        </contrib-group>
+        <author-notes>
+          <fn><p>ORCID: <uri xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://orcid.org/0000-0003-2471-4641">orcid.org/0000-0003-2471-4641</uri></p></fn>
+        </author-notes>
+        <abstract>
+          <p>Adoptive cellular immunotherapy can use gamma/delta T cells <italic toggle="yes">in vivo</italic>.</p>
+        </abstract>
+      </article-meta>
+    </front>
+    <body>
+      <sec>
+        <title>Introduction</title>
+        <p>Recent advances in genomic editing of cells (<xref rid="B1" ref-type="bibr">1</xref>-<xref rid="B3" ref-type="bibr">3</xref>) have propelled cellular immunotherapy.</p>
+      </sec>
+    </body>
+    <back>
+      <ref-list>
+        <title>References</title>
+        <ref id="B1"><label>1</label><mixed-citation><article-title>Genome editing study</article-title>. doi: <pub-id pub-id-type="doi">10.1000/test</pub-id></mixed-citation></ref>
+      </ref-list>
+    </back>
+  </article>
+</pmc-articleset>`;
+
+    const articles = parsePmcEfetchXml(xml);
+    expect(articles[0].abstract).toContain('Adoptive cellular immunotherapy');
+    expect(articles[0].full_text).toContain('Introduction');
+    expect(articles[0].full_text).toContain('(1-3)');
+    expect(articles[0].full_text).toContain('References');
+    expect(articles[0].full_text).toContain('10.1000/test');
+  });
+
+  it('finds ref-list nodes nested under back sections', () => {
+    const xml = `<?xml version="1.0"?>
+<pmc-articleset>
+  <article>
+    <front>
+      <article-meta>
+        <article-id pub-id-type="pmcid">999</article-id>
+        <title-group>
+          <article-title>Nested references test</article-title>
+        </title-group>
+      </article-meta>
+    </front>
+    <body>
+      <sec>
+        <title>Data availability statement</title>
+        <p>Code is available from the project repository.</p>
+      </sec>
+    </body>
+    <back>
+      <sec sec-type="supplementary-material">
+        <title>Supplementary material</title>
+        <p>Supplementary material is available online.</p>
+      </sec>
+      <sec>
+        <ref-list>
+          <title>References</title>
+          <ref id="B1"><label>1</label><mixed-citation><article-title>Nested reference</article-title>. doi: <pub-id pub-id-type="doi">10.1000/nested</pub-id></mixed-citation></ref>
+        </ref-list>
+      </sec>
+    </back>
+  </article>
+</pmc-articleset>`;
+
+    const articles = parsePmcEfetchXml(xml);
+    expect(articles[0].full_text).toContain('Data availability statement');
+    expect(articles[0].full_text).toContain('References');
+    expect(articles[0].full_text).toContain('10.1000/nested');
+  });
 });
