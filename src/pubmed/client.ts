@@ -200,12 +200,22 @@ export class NcbiClient {
         params: {
           ...this.commonParams(),
           db: 'pubmed',
+          retmode: 'xml',
           rettype: 'xml',
           bdata,
         },
         responseType: 'text',
       });
-      return response.data as string;
+      const contentType = String(response.headers?.['content-type'] ?? '').toLowerCase();
+      const text = String(response.data ?? '');
+      if (contentType.includes('html') || looksLikeHtml(text)) {
+        throw new NcbiApiError(
+          'NCBI ecitmatch returned HTML instead of citation match text. ' +
+            'Check the ECitMatch endpoint and bdata parameter format.',
+          response.status
+        );
+      }
+      return text;
     } catch (err) {
       throw wrapAxiosError(err, 'ecitmatch');
     }
@@ -231,7 +241,7 @@ export class NcbiClient {
           versions: 'no',
         },
       });
-      return response.data as IdConvResponse;
+      return sanitizeIdConvResponse(response.data as IdConvResponse);
     } catch (err) {
       throw wrapAxiosError(err, 'idConvert');
     }
@@ -322,6 +332,9 @@ export interface IdConvResponse {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function wrapAxiosError(err: unknown, operation: string): Error {
+  if (err instanceof NcbiApiError || err instanceof NcbiNetworkError) {
+    return err;
+  }
   if (axios.isAxiosError(err)) {
     const status = err.response?.status;
     const message = (err.response?.data as string | undefined) ?? err.message;
@@ -338,4 +351,22 @@ function wrapAxiosError(err: unknown, operation: string): Error {
   }
   if (err instanceof Error) return err;
   return new Error(`Unknown error during NCBI ${operation}`);
+}
+
+function looksLikeHtml(text: string): boolean {
+  return /^\s*(?:<!doctype\s+html|<html\b)/i.test(text);
+}
+
+function sanitizeIdConvResponse(response: IdConvResponse): IdConvResponse {
+  return {
+    ...response,
+    request: {
+      ...response.request,
+      echo: redactApiKey(response.request.echo),
+    },
+  };
+}
+
+function redactApiKey(value: string): string {
+  return value.replace(/(^|[?&])(api_key=)[^&\s]+/gi, '$1$2<redacted>');
 }

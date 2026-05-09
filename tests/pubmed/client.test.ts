@@ -117,6 +117,62 @@ describe('NcbiClient', () => {
     });
   });
 
+  // ── ecitmatch ────────────────────────────────────────────────────────────
+
+  describe('ecitmatch', () => {
+    it('calls ECitMatch with pipe-delimited bdata and XML mode', async () => {
+      mockedAxios.get = vi.fn().mockResolvedValue({
+        data: 'N Engl J Med|2019|380|45|Schuster|ref1|30501490',
+        headers: { 'content-type': 'text/plain' },
+        status: 200,
+      });
+
+      const result = await client.ecitmatch([
+        {
+          journal: 'N Engl J Med',
+          year: 2019,
+          volume: '380',
+          first_page: '45',
+          author: 'Schuster',
+          key: 'ref1',
+        },
+      ]);
+
+      expect(result).toContain('30501490');
+
+      const call = (mockedAxios.get as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(call[0]).toContain('ecitmatch.cgi');
+      expect(call[1].params).toMatchObject({
+        db: 'pubmed',
+        retmode: 'xml',
+        rettype: 'xml',
+        bdata: 'N Engl J Med|2019|380|45|Schuster|ref1|',
+      });
+      expect(call[1].responseType).toBe('text');
+    });
+
+    it('rejects HTML responses instead of passing them to citation parsing', async () => {
+      mockedAxios.get = vi.fn().mockResolvedValue({
+        data: '<html><title>Batch Citation Matcher - PubMed</title></html>',
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+        status: 200,
+      });
+
+      await expect(
+        client.ecitmatch([
+          {
+            journal: 'N Engl J Med',
+            year: 2019,
+            volume: '380',
+            first_page: '45',
+            author: 'Schuster',
+            key: 'ref1',
+          },
+        ])
+      ).rejects.toThrow(NcbiApiError);
+    });
+  });
+
   // ── idConvert ─────────────────────────────────────────────────────────────
 
   describe('idConvert', () => {
@@ -131,7 +187,7 @@ describe('NcbiClient', () => {
           ids: ['33526711'],
           email: 'pubmed-mcp@example.com',
           tool: 'pubmed-mcp',
-          echo: '',
+          echo: 'api_key=test-api-key&ids=33526711&format=json',
           versions: 'no',
           showaiid: 'no',
         },
@@ -150,6 +206,7 @@ describe('NcbiClient', () => {
 
       expect(result.records[0].pmcid).toBe('PMC7984072');
       expect(result.records[0].doi).toBe('10.1038/s41586-021-03819-2');
+      expect(result.request.echo).toBe('api_key=<redacted>&ids=33526711&format=json');
     });
   });
 });

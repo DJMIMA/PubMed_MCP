@@ -48,6 +48,26 @@ const ALWAYS_ARRAY_PMC = new Set([
   'list-item',
 ]);
 
+const PMC_INLINE_TAGS_TO_UNWRAP = [
+  'bold',
+  'italic',
+  'monospace',
+  'overline',
+  'roman',
+  'sans-serif',
+  'sc',
+  'strike',
+  'styled-content',
+  'sub',
+  'sup',
+  'underline',
+  'xref',
+  'ext-link',
+  'uri',
+  'email',
+  'named-content',
+];
+
 // ─── PubMed efetch XML parser ─────────────────────────────────────────────────
 
 const pubmedParser = new XMLParser({
@@ -223,7 +243,7 @@ function parseAbstract(abstractNode: any): string {
  */
 export function parsePmcEfetchXml(xml: string): FullTextArticle[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const doc = pmcParser.parse(xml) as any;
+  const doc = pmcParser.parse(normalizePmcInlineXml(xml)) as any;
   const articleSet = doc?.['pmc-articleset'] ?? doc;
   const articles: unknown[] = asArray(articleSet?.article);
 
@@ -257,19 +277,20 @@ function parsePmcArticle(article: any): FullTextArticle {
   }
 
   // Title
-  const title = extractText(articleMeta?.['title-group']?.['article-title']);
+  const title = cleanPmcText(extractText(articleMeta?.['title-group']?.['article-title']));
 
   // Abstract
   const abstractNodes = asArray(articleMeta?.abstract);
-  const abstract = abstractNodes
-    .map((a: unknown) => extractPmcAbstract(a))
-    .join('\n')
-    .trim();
+  const abstract = cleanPmcText(
+    abstractNodes
+      .map((a: unknown) => extractPmcAbstract(a))
+      .join('\n')
+  );
 
   // Full text from body + back
   const bodyText = body ? extractPmcSectionText(body) : '';
   const backText = back ? extractPmcBackText(back) : '';
-  const full_text = [bodyText, backText].filter(Boolean).join('\n\n').trim();
+  const full_text = cleanPmcText([bodyText, backText].filter(Boolean).join('\n\n'));
 
   return {
     identifiers,
@@ -445,4 +466,27 @@ export function extractText(node: unknown): string {
       .trim();
   }
   return '';
+}
+
+function normalizePmcInlineXml(xml: string): string {
+  let normalized = xml;
+  for (const tag of PMC_INLINE_TAGS_TO_UNWRAP) {
+    const tagPattern = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'gi');
+    let previous: string;
+    do {
+      previous = normalized;
+      normalized = normalized.replace(tagPattern, '$1');
+    } while (normalized !== previous);
+  }
+  return normalized;
+}
+
+export function cleanPmcText(text: string): string {
+  return text
+    .replace(/(^|[\s([{:;,.])\+(?:\s+\+)+(?=$|[\s)\]}:;,.])/g, '$1')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }

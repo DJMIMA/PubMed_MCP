@@ -231,4 +231,60 @@ describe('parsePmcEfetchXml', () => {
     expect(articles[0].full_text).toContain('introduction paragraph');
     expect(articles[0].full_text).toContain('Methods are described');
   });
+
+  it('keeps inline xref text in citation markers', () => {
+    const xml = `<?xml version="1.0"?>
+<pmc-articleset>
+  <article>
+    <front>
+      <article-meta>
+        <article-id pub-id-type="pmcid">123</article-id>
+        <title-group>
+          <article-title>Inline citation test</article-title>
+        </title-group>
+      </article-meta>
+    </front>
+    <body>
+      <sec>
+        <title>Introduction</title>
+        <p>Cells persist into adulthood (<xref ref-type="bibr" rid="B3">3</xref>-<xref ref-type="bibr" rid="B7">7</xref>).</p>
+      </sec>
+    </body>
+  </article>
+</pmc-articleset>`;
+
+    const articles = parsePmcEfetchXml(xml);
+    expect(articles[0].full_text).toContain('(3-7)');
+  });
+
+  it('keeps inline plus markers in place and removes repeated stray plus tokens', () => {
+    const xml = `<?xml version="1.0"?>
+<pmc-articleset>
+  <article>
+    <front>
+      <article-meta>
+        <article-id pub-id-type="pmcid">456</article-id>
+        <title-group>
+          <article-title>Public Vd2<sup>+</sup>gd clones <sup>+</sup> <sup>+</sup></article-title>
+        </title-group>
+        <abstract>
+          <p>Background: Vd2<sup>+</sup> cells expand. <sup>+</sup> <sup>+</sup> Methods: We tested clones.</p>
+        </abstract>
+      </article-meta>
+    </front>
+    <body>
+      <sec>
+        <title>Results</title>
+        <p>Vd2<sup>+</sup> cells remained detectable.</p>
+      </sec>
+    </body>
+  </article>
+</pmc-articleset>`;
+
+    const articles = parsePmcEfetchXml(xml);
+    expect(articles[0].title).toBe('Public Vd2+gd clones');
+    expect(articles[0].abstract).toContain('Vd2+ cells expand.');
+    expect(articles[0].abstract).not.toContain('+ +');
+    expect(articles[0].full_text).toContain('Vd2+ cells remained detectable.');
+  });
 });

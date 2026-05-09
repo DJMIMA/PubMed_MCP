@@ -83,6 +83,10 @@ function parseEcitmatchResponse(
   text: string,
   originalCitations: LookupArticleByCitationParams['citations']
 ): CitationResult[] {
+  if (/^\s*(?:<!doctype\s+html|<html\b)/i.test(text)) {
+    throw new Error('ECitMatch returned HTML instead of citation match text');
+  }
+
   const lines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -91,11 +95,12 @@ function parseEcitmatchResponse(
   return lines.map((line, idx) => {
     const parts = line.split('|');
     // Fields: [0]journal, [1]year, [2]volume, [3]first_page, [4]author, [5]key, [6]result
-    const result = parts[6]?.trim() ?? '';
+    const result = parts.at(-1)?.trim() ?? '';
     const isFound = result !== '' && result !== 'NOT_FOUND' && /^\d+$/.test(result);
 
     // Use original citation data where available (ecitmatch may alter formatting)
     const original = originalCitations[idx];
+    const echoedKey = parts.length >= 7 ? parts[5] : parts[0];
 
     return {
       journal: original?.journal ?? parts[0] ?? '',
@@ -104,7 +109,7 @@ function parseEcitmatchResponse(
       first_page: original?.first_page ?? parts[3] ?? '',
       author: original?.author ?? parts[4] ?? '',
       pmid: isFound ? result : '',
-      key: isFound ? (original?.key ?? result) : 'NOT_FOUND',
+      key: original?.key ?? echoedKey ?? '',
     };
   });
 }
