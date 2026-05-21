@@ -45,40 +45,41 @@ export async function getCopyrightStatus(
     }
   }
 
-  // Step 2: For each PMID that has a PMCID, query the OA service
-  const statuses: CopyrightStatus[] = await Promise.all(
-    params.pmids.map(async (pmid): Promise<CopyrightStatus> => {
-      const pmcid = pmidToPmcid.get(pmid);
+  // Step 2: For each PMID that has a PMCID, query the OA service.
+  // Keep these requests sequential so batched inputs respect NCBI rate limits.
+  const statuses: CopyrightStatus[] = [];
+  for (const pmid of params.pmids) {
+    const pmcid = pmidToPmcid.get(pmid);
 
-      if (!pmcid) {
-        return {
-          pmid,
-          has_full_text: false,
-        };
-      }
+    if (!pmcid) {
+      statuses.push({
+        pmid,
+        has_full_text: false,
+      });
+      continue;
+    }
 
-      try {
-        const oaXml = await client.oaFetch(pmcid);
-        const oaResult = parsePmcOaXml(oaXml, pmcid);
-        return {
-          pmid,
-          pmcid,
-          has_full_text: true,
-          ...(oaResult.license ? { license: oaResult.license } : {}),
-          is_open_access: oaResult.isOpenAccess,
-        };
-      } catch {
-        // PMC record exists but OA service failed — article is in PMC but
-        // may not be open access
-        return {
-          pmid,
-          pmcid,
-          has_full_text: true,
-          is_open_access: false,
-        };
-      }
-    })
-  );
+    try {
+      const oaXml = await client.oaFetch(pmcid);
+      const oaResult = parsePmcOaXml(oaXml, pmcid);
+      statuses.push({
+        pmid,
+        pmcid,
+        has_full_text: true,
+        ...(oaResult.license ? { license: oaResult.license } : {}),
+        is_open_access: oaResult.isOpenAccess,
+      });
+    } catch {
+      // PMC record exists but OA service failed — article is in PMC but
+      // may not be open access
+      statuses.push({
+        pmid,
+        pmcid,
+        has_full_text: true,
+        is_open_access: false,
+      });
+    }
+  }
 
   return {
     statuses,
