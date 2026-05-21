@@ -364,6 +364,15 @@ function sanitizeIdConvResponse(response: IdConvResponse): IdConvResponse {
       ...response.request,
       echo: redactApiKey(response.request.echo),
     },
+    records: response.records.map((record) => ({
+      ...record,
+      ...(record.pmid !== undefined ? { pmid: String(record.pmid) } : {}),
+      ...(record.pmcid !== undefined ? { pmcid: String(record.pmcid) } : {}),
+      ...(record.doi !== undefined ? { doi: String(record.doi) } : {}),
+      ...(record['requested-id'] !== undefined
+        ? { 'requested-id': String(record['requested-id']) }
+        : {}),
+    })),
   };
 }
 

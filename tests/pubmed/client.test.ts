@@ -193,7 +193,7 @@ describe('NcbiClient', () => {
         },
         records: [
           {
-            pmid: '33526711',
+            pmid: 33526711,
             pmcid: 'PMC7984072',
             doi: '10.1038/s41586-021-03819-2',
             'requested-id': '33526711',
@@ -204,6 +204,7 @@ describe('NcbiClient', () => {
 
       const result = await client.idConvert({ ids: ['33526711'], idtype: 'pmid' });
 
+      expect(result.records[0].pmid).toBe('33526711');
       expect(result.records[0].pmcid).toBe('PMC7984072');
       expect(result.records[0].doi).toBe('10.1038/s41586-021-03819-2');
       expect(result.request.echo).toBe('api_key=<redacted>&ids=33526711&format=json');

@@ -36,7 +36,7 @@ describe('getCopyrightStatus', () => {
     mockIdConvert.mockResolvedValue({
       status: 'ok',
       records: [
-        { pmid: '111', pmcid: 'PMC111', 'requested-id': '111' },
+        { pmid: 111, pmcid: 'PMC111', 'requested-id': '111' },
         { pmid: '222', pmcid: 'PMC222', 'requested-id': '222' },
         { 'requested-id': '333', errmsg: 'Record not found' },
       ],

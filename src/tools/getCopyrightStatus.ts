@@ -41,7 +41,7 @@ export async function getCopyrightStatus(
   for (const record of convResponse.records) {
     const pmid = record.pmid ?? record['requested-id'];
     if (pmid) {
-      pmidToPmcid.set(pmid, record.pmcid);
+      pmidToPmcid.set(String(pmid), record.pmcid);
     }
   }
 
