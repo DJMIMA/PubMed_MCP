@@ -255,7 +255,7 @@ export class NcbiClient {
     await this.rateLimiter.throttle();
     try {
       const response = await axios.get(PMC_OA_URL, {
-        params: { id: pmcid, format: 'xml' },
+        params: { id: pmcid },
         responseType: 'text',
       });
       return response.data as string;

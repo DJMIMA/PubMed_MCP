@@ -3,7 +3,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { extractText, parsePubmedEfetchXml, parsePmcEfetchXml } from '../../src/utils/xml.js';
+import {
+  extractText,
+  parsePubmedEfetchXml,
+  parsePmcEfetchXml,
+  parsePmcOaXml,
+} from '../../src/utils/xml.js';
 
 describe('extractText', () => {
   it('returns a string as-is', () => {
@@ -374,5 +379,40 @@ describe('parsePmcEfetchXml', () => {
     expect(articles[0].full_text).toContain('Data availability statement');
     expect(articles[0].full_text).toContain('References');
     expect(articles[0].full_text).toContain('10.1000/nested');
+  });
+});
+
+describe('parsePmcOaXml', () => {
+  it('parses PMC OA Service records with direct link elements', () => {
+    const xml = `<?xml version="1.0"?>
+<OA>
+  <responseDate>2019-01-28 10:41:16</responseDate>
+  <request id="PMC5334499">https://www.ncbi.nlm.nih.gov/utils/oa/oa.fcgi?id=PMC5334499</request>
+  <records returned-count="1" total-count="1">
+    <record id="PMC5334499" citation="World J Radiol. 2017 Feb 28; 9(2):27-33"
+      license="CC BY-NC" retracted="no">
+      <link format="tgz" updated="2017-03-17 13:10:45"
+        href="ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_package/8e/71/PMC5334499.tar.gz"/>
+    </record>
+  </records>
+</OA>`;
+
+    const result = parsePmcOaXml(xml, 'PMC5334499');
+
+    expect(result).toEqual({
+      pmcid: 'PMC5334499',
+      license: 'CC BY-NC',
+      ftp: 'ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_package/8e/71/PMC5334499.tar.gz',
+      isOpenAccess: true,
+    });
+  });
+
+  it('returns non-open-access for OA Service error responses', () => {
+    const result = parsePmcOaXml(
+      '<OA><error code="idIsNotOpenAccess">Not in OA subset</error></OA>',
+      'PMC123'
+    );
+
+    expect(result).toEqual({ pmcid: 'PMC123', isOpenAccess: false });
   });
 });

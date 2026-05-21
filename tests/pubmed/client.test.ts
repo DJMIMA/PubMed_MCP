@@ -210,4 +210,18 @@ describe('NcbiClient', () => {
       expect(result.request.echo).toBe('api_key=<redacted>&ids=33526711&format=json');
     });
   });
+
+  // ── oaFetch ───────────────────────────────────────────────────────────────
+
+  describe('oaFetch', () => {
+    it('calls the PMC OA endpoint without a format filter', async () => {
+      mockedAxios.get = vi.fn().mockResolvedValue({ data: '<OA/>' });
+
+      await client.oaFetch('PMC9321363');
+
+      const call = (mockedAxios.get as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(call[1].params).toEqual({ id: 'PMC9321363' });
+      expect(call[1].responseType).toBe('text');
+    });
+  });
 });

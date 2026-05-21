@@ -415,7 +415,8 @@ export function parsePmcOaXml(xml: string, pmcid: string): OaResult {
 
   const record = oa?.records?.record;
   const license = record?._license ?? undefined;
-  const ftp = record?.links?.link?._href ?? undefined;
+  const link = Array.isArray(record?.link) ? record.link[0] : record?.link;
+  const ftp = record?.links?.link?._href ?? link?._href ?? undefined;
 
   return {
     pmcid,
