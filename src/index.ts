@@ -46,8 +46,14 @@ async function startHttpServer(port: number): Promise<void> {
     '@modelcontextprotocol/sdk/server/streamableHttp.js'
   );
 
+  const { protectedResourceMetadata, requireAuth } = await import('./auth.js');
+
   const app = express();
   app.use(express.json());
+
+  // OAuth 2.0 Protected Resource Metadata (RFC 9728) — public so the client can
+  // discover the authorization server. No token required.
+  app.get('/.well-known/oauth-protected-resource', protectedResourceMetadata);
 
   // Return JSON (not HTML) for malformed request bodies.
   app.use(
@@ -68,7 +74,7 @@ async function startHttpServer(port: number): Promise<void> {
   // MCP Streamable HTTP — handles both POST (client→server) and GET (SSE stream).
   // SDK v1.x: stateless transports cannot be reused across requests.
   // A new transport and server instance must be created for every request.
-  app.all('/mcp', (req, res) => {
+  app.all('/mcp', requireAuth, (req, res) => {
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // stateless mode
     });
@@ -94,7 +100,7 @@ async function startHttpServer(port: number): Promise<void> {
     process.stderr.write(`PubMed MCP server running on HTTP port ${port}\n`);
     process.stderr.write(`  MCP endpoint : http://localhost:${port}/mcp\n`);
     process.stderr.write(`  Health check : http://localhost:${port}/health\n`);
-    process.stderr.write('  Auth         : disabled\n');
+    process.stderr.write('  Auth         : OAuth 2.0 (WorkOS AuthKit) — Bearer required on /mcp\n');
   });
 
   const shutdown = (): void => {
