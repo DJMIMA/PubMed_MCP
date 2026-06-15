@@ -100,7 +100,7 @@ async function startHttpServer(port: number): Promise<void> {
     process.stderr.write(`PubMed MCP server running on HTTP port ${port}\n`);
     process.stderr.write(`  MCP endpoint : http://localhost:${port}/mcp\n`);
     process.stderr.write(`  Health check : http://localhost:${port}/health\n`);
-    process.stderr.write('  Auth         : OAuth 2.0 (Stytch) — Bearer required on /mcp\n');
+    process.stderr.write('  Auth         : OAuth 2.0 (WorkOS AuthKit) — Bearer required on /mcp\n');
   });
 
   const shutdown = (): void => {

@@ -2,25 +2,25 @@
  * OAuth 2.0 resource-server enforcement for HTTP mode.
  *
  * The MCP server acts as an OAuth 2.0 *resource server* (RFC 9728 /
- * MCP authorization spec 2025-06-18). Stytch is the *authorization server*:
- * it runs Dynamic Client Registration (so claude.ai can register itself) and
- * issues signed JWT access tokens. This module:
+ * MCP authorization spec 2025-06-18). A managed authorization server
+ * (WorkOS AuthKit) runs Dynamic Client Registration (so claude.ai can register
+ * itself) and issues signed JWT access tokens. This module:
  *
  *   1. Advertises the authorization server via Protected Resource Metadata at
  *      /.well-known/oauth-protected-resource
- *   2. Validates the Bearer JWT on every /mcp request against Stytch's JWKS
- *      (signature, issuer, audience, expiry).
+ *   2. Validates the Bearer JWT on every /mcp request against the provider's
+ *      JWKS (signature, issuer, audience, expiry).
  *   3. Restricts access to an allowlist of token subjects — since DCR lets
  *      anyone register a client, this is what makes the server *yours only*.
  *
- * Required environment variables (copy issuer/jwks from Stytch's
- *   https://<your-stytch-domain>/.well-known/oauth-authorization-server ):
- *   STYTCH_ISSUER     — `issuer` from that document
- *   STYTCH_JWKS_URL   — `jwks_uri` from that document
+ * Required environment variables (copy issuer/jwks from the provider's
+ *   https://<your-authkit-domain>/.well-known/oauth-authorization-server ):
+ *   OAUTH_ISSUER      — `issuer` from that document
+ *   OAUTH_JWKS_URL    — `jwks_uri` from that document
  *   MCP_RESOURCE_URL  — public URL of this server's MCP endpoint
  *                       (e.g. https://pubmed-mcp-xxxx.run.app/mcp); used as the
  *                       expected token `aud` and as the resource identifier
- *   ALLOWED_SUBJECTS  — comma-separated Stytch user IDs permitted to connect.
+ *   ALLOWED_SUBJECTS  — comma-separated user IDs permitted to connect.
  *                       Leave empty on first deploy to discover your own id
  *                       from the logs, then set it and redeploy.
  */
@@ -28,8 +28,8 @@
 import type { Request, Response, NextFunction } from 'express';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
-const ISSUER = requireEnv('STYTCH_ISSUER');
-const JWKS_URL = requireEnv('STYTCH_JWKS_URL');
+const ISSUER = requireEnv('OAUTH_ISSUER');
+const JWKS_URL = requireEnv('OAUTH_JWKS_URL');
 const RESOURCE = requireEnv('MCP_RESOURCE_URL');
 
 const ALLOWED_SUBJECTS = (process.env.ALLOWED_SUBJECTS ?? '')
