@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { NcbiClient } from '../../src/pubmed/client.js';
-import { searchArticles } from '../../src/tools/searchArticles.js';
+import { searchArticles, searchArticlesSchema } from '../../src/tools/searchArticles.js';
 
 const mockEsearch = vi.fn();
 
@@ -115,5 +115,29 @@ describe('searchArticles', () => {
 
     expect(result.returned_count).toBe(10);
     expect(result.has_more).toBe(true); // 20 + 10 = 30 < 50
+  });
+
+  it('defaults date filtering to publication date when datetype is omitted', async () => {
+    mockEsearch.mockResolvedValue({
+      count: '0',
+      retmax: '20',
+      retstart: '0',
+      idlist: [],
+      translationset: [],
+      querytranslation: '',
+    });
+
+    await searchArticles(
+      { query: 'test', date_from: '2024', date_to: '2024' },
+      mockClient
+    );
+
+    expect(mockEsearch).toHaveBeenCalledWith(
+      expect.objectContaining({ datetype: 'pdat' })
+    );
+  });
+
+  it('rejects the unsupported title sort value', () => {
+    expect(searchArticlesSchema.sort.safeParse('title').success).toBe(false);
   });
 });

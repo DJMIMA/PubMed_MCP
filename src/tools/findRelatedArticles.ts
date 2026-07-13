@@ -9,28 +9,30 @@ import { z } from 'zod';
 import type { NcbiClient, ElinkLinksetDb } from '../pubmed/client.js';
 import type { FindRelatedArticlesResponse, Linkset } from '../pubmed/types.js';
 
+const LINK_TYPES = [
+  'similar_articles',
+  'citing_pmc_articles',
+  'linked_gene_records',
+  'linked_refseq_proteins',
+  'linked_refseq_nucleotides',
+] as const;
+export type FindRelatedLinkType = (typeof LINK_TYPES)[number];
+
 export const findRelatedArticlesSchema = {
   pmids: z
     .array(z.string().min(1))
     .min(1)
     .describe('Array of source PubMed IDs to find related articles for.'),
   link_type: z
-    .enum([
-      'pubmed_pubmed',
-      'pubmed_pmc',
-      'pubmed_gene',
-      'pubmed_protein',
-      'pubmed_nucleotide',
-    ])
-    .default('pubmed_pubmed')
-    .optional()
+    .enum(LINK_TYPES)
+    .default('similar_articles')
     .describe(
       'Type of link to follow:\n' +
-        '  pubmed_pubmed     — related articles in PubMed (default)\n' +
-        '  pubmed_pmc        — full-text articles in PubMed Central\n' +
-        '  pubmed_gene       — related gene records in NCBI Gene\n' +
-        '  pubmed_protein    — related protein records\n' +
-        '  pubmed_nucleotide — related nucleotide sequences'
+        '  similar_articles           — computationally similar PubMed articles (default)\n' +
+        '  citing_pmc_articles        — PMC articles that cite the source article\n' +
+        '  linked_gene_records        — linked NCBI Gene records\n' +
+        '  linked_refseq_proteins     — linked RefSeq protein records\n' +
+        '  linked_refseq_nucleotides  — linked RefSeq nucleotide records'
     ),
   max_results: z
     .number()
@@ -46,24 +48,24 @@ export const findRelatedArticlesSchema = {
 
 export type FindRelatedArticlesParams = {
   pmids: string[];
-  link_type?: 'pubmed_pubmed' | 'pubmed_pmc' | 'pubmed_gene' | 'pubmed_protein' | 'pubmed_nucleotide';
+  link_type?: FindRelatedLinkType;
   max_results?: number;
 };
 
 // Mapping from tool link_type values to NCBI elink linkname values
-const LINK_TYPE_MAP: Record<string, string> = {
-  pubmed_pubmed: 'pubmed_pubmed',
-  pubmed_pmc: 'pubmed_pmc_refs',
-  pubmed_gene: 'pubmed_gene',
-  pubmed_protein: 'pubmed_protein_refseq',
-  pubmed_nucleotide: 'pubmed_nuccore_refseqrna',
+const LINK_TYPE_MAP: Record<FindRelatedLinkType, string> = {
+  similar_articles: 'pubmed_pubmed',
+  citing_pmc_articles: 'pubmed_pmc_refs',
+  linked_gene_records: 'pubmed_gene',
+  linked_refseq_proteins: 'pubmed_protein_refseq',
+  linked_refseq_nucleotides: 'pubmed_nuccore_refseq',
 };
 
 export async function findRelatedArticles(
   params: FindRelatedArticlesParams,
   client: NcbiClient
 ): Promise<FindRelatedArticlesResponse> {
-  const linkname = LINK_TYPE_MAP[params.link_type ?? 'pubmed_pubmed'];
+  const linkname = LINK_TYPE_MAP[params.link_type ?? 'similar_articles'];
 
   const response = await client.elink({
     dbfrom: 'pubmed',

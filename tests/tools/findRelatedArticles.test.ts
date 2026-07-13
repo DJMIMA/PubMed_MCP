@@ -63,19 +63,30 @@ describe('findRelatedArticles', () => {
     expect(result.linksets[0].linksetdbs[0].links).toHaveLength(2);
   });
 
-  it('uses correct linkname for pubmed_pmc link type', async () => {
-    await findRelatedArticles({ pmids: ['33526711'], link_type: 'pubmed_pmc' }, mockClient);
+  it('maps citing_pmc_articles to the PMC references link', async () => {
+    await findRelatedArticles({ pmids: ['33526711'], link_type: 'citing_pmc_articles' }, mockClient);
 
     expect(mockElink).toHaveBeenCalledWith(
       expect.objectContaining({ linkname: 'pubmed_pmc_refs' })
     );
   });
 
-  it('defaults to pubmed_pubmed link type', async () => {
+  it('defaults to similar_articles', async () => {
     await findRelatedArticles({ pmids: ['33526711'] }, mockClient);
 
     expect(mockElink).toHaveBeenCalledWith(
       expect.objectContaining({ linkname: 'pubmed_pubmed' })
+    );
+  });
+
+  it('maps linked_refseq_nucleotides to the supported NCBI link name', async () => {
+    await findRelatedArticles(
+      { pmids: ['33526711'], link_type: 'linked_refseq_nucleotides' },
+      mockClient
+    );
+
+    expect(mockElink).toHaveBeenCalledWith(
+      expect.objectContaining({ linkname: 'pubmed_nuccore_refseq' })
     );
   });
 });

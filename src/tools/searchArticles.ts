@@ -15,7 +15,6 @@ const SORT_MAP: Record<string, string> = {
   pub_date: 'pub_date',
   author: 'Author',
   journal_name: 'JournalName',
-  title: 'title',
 };
 
 export const searchArticlesSchema = {
@@ -46,15 +45,14 @@ export const searchArticlesSchema = {
         'Use with max_results for pagination.'
     ),
   sort: z
-    .enum(['relevance', 'pub_date', 'author', 'journal_name', 'title'])
+    .enum(['relevance', 'pub_date', 'author', 'journal_name'])
     .optional()
     .describe(
       'Sort order for results. ' +
         'relevance: most relevant first; ' +
         'pub_date: most recent first; ' +
         'author: alphabetical by first author; ' +
-        'journal_name: alphabetical by journal; ' +
-        'title: alphabetical by title.'
+        'journal_name: alphabetical by journal.'
     ),
   date_from: z
     .string()
@@ -73,7 +71,6 @@ export const searchArticlesSchema = {
   datetype: z
     .enum(['pdat', 'edat', 'mdat'])
     .default('pdat')
-    .optional()
     .describe(
       'Date type to filter on: ' +
         'pdat = publication date (default); ' +
@@ -86,7 +83,7 @@ export type SearchArticlesParams = {
   query: string;
   max_results?: number;
   retstart?: number;
-  sort?: 'relevance' | 'pub_date' | 'author' | 'journal_name' | 'title';
+  sort?: 'relevance' | 'pub_date' | 'author' | 'journal_name';
   date_from?: string;
   date_to?: string;
   datetype?: 'pdat' | 'edat' | 'mdat';
@@ -104,7 +101,7 @@ export async function searchArticles(
     retmax,
     retstart,
     sort: params.sort ? SORT_MAP[params.sort] : undefined,
-    datetype: params.datetype,
+    datetype: params.datetype ?? 'pdat',
     mindate: params.date_from,
     maxdate: params.date_to,
   });

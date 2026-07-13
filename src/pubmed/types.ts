@@ -148,9 +148,15 @@ export interface FullTextArticle {
   full_text: string;
 }
 
+export interface FullTextArticleError {
+  pmcid: string;
+  error: string;
+}
+
 export interface GetFullTextArticleResponse {
   important_legal_notice: string;
   articles: FullTextArticle[];
+  errors: FullTextArticleError[];
   count: number;
 }
 

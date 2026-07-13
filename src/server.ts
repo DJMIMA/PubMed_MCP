@@ -91,7 +91,7 @@ export function createServer(): McpServer {
   server.tool(
     'find_related_articles',
     'Find articles related to one or more PubMed articles using NCBI ELink. ' +
-      'Supports finding related PubMed articles, linked PMC full-text records, ' +
+      'Supports similar articles, PMC articles that cite the source, ' +
       'and cross-database links to NCBI Gene, Protein, or Nucleotide databases.',
     findRelatedArticlesSchema,
     async (params) => {
@@ -155,8 +155,9 @@ export function createServer(): McpServer {
     'Retrieve the full text of articles from PubMed Central (PMC). ' +
       'Returns the complete article body including all sections, figure captions, ' +
       'table captions, and references as plain text. ' +
-      'Only articles in the PMC Open Access Subset have full text available; ' +
-      'use convert_article_ids to find PMCIDs from PMIDs first.',
+      'Only articles in the PMC Open Access Subset have full text available. ' +
+      'Unavailable articles are reported in the errors array. ' +
+      'Use convert_article_ids to find PMCIDs from PMIDs first.',
     getFullTextArticleSchema,
     async (params) => {
       try {

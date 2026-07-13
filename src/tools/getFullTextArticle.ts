@@ -21,7 +21,7 @@ export const getFullTextArticleSchema = {
       'Array of PubMed Central IDs (PMCIDs) to retrieve full text for. ' +
         'PMCIDs must include the "PMC" prefix (e.g., ["PMC9583675", "PMC7984072"]). ' +
         'Only articles in the PMC Open Access Subset have full text available; ' +
-        'subscription articles will be absent from results.'
+        'unavailable articles are excluded from articles and reported in errors.'
     ),
 };
 
@@ -31,7 +31,12 @@ export type GetFullTextArticleParams = {
 
 /** Strip the PMC prefix to get the numeric portion NCBI expects. */
 function stripPmcPrefix(id: string): string {
-  return id.toUpperCase().startsWith('PMC') ? id.slice(3) : id;
+  const trimmed = id.trim();
+  return trimmed.toUpperCase().startsWith('PMC') ? trimmed.slice(3) : trimmed;
+}
+
+function normalizePmcId(id: string): string {
+  return `PMC${stripPmcPrefix(id)}`.toUpperCase();
 }
 
 export async function getFullTextArticle(
@@ -47,18 +52,55 @@ export async function getFullTextArticle(
     retmode: 'xml',
   });
 
-  let articles: FullTextArticle[];
+  let parsedArticles: FullTextArticle[];
   try {
-    articles = parsePmcEfetchXml(xml);
+    parsedArticles = parsePmcEfetchXml(xml);
   } catch (err) {
-    // If parsing fails entirely, return empty with a note
     process.stderr.write(`PMC XML parse error: ${String(err)}\n`);
-    articles = [];
+    return {
+      important_legal_notice: IMPORTANT_LEGAL_NOTICE,
+      articles: [],
+      errors: params.pmc_ids.map((pmcid) => ({
+        pmcid: normalizePmcId(pmcid),
+        error: 'Failed to parse the PMC EFetch response.',
+      })),
+      count: 0,
+    };
+  }
+
+  const articles: FullTextArticle[] = [];
+  const errors: GetFullTextArticleResponse['errors'] = [];
+  const returnedIds = new Set<string>();
+
+  for (const [index, article] of parsedArticles.entries()) {
+    const pmcid = article.identifiers.pmcid
+      ? normalizePmcId(article.identifiers.pmcid)
+      : normalizePmcId(params.pmc_ids[index] ?? '');
+    returnedIds.add(pmcid);
+
+    if (article.full_text.trim()) {
+      articles.push(article);
+    } else {
+      errors.push({
+        pmcid,
+        error: 'Full text is not available from PMC EFetch for this article.',
+      });
+    }
+  }
+
+  for (const pmcid of new Set(params.pmc_ids.map(normalizePmcId))) {
+    if (!returnedIds.has(pmcid)) {
+      errors.push({
+        pmcid,
+        error: 'PMC EFetch did not return this article.',
+      });
+    }
   }
 
   return {
     important_legal_notice: IMPORTANT_LEGAL_NOTICE,
     articles,
+    errors,
     count: articles.length,
   };
 }

@@ -48,6 +48,10 @@ const ALWAYS_ARRAY_PMC = new Set([
   'list-item',
 ]);
 
+// PubMed titles and abstracts use mixed-content formatting tags. Unwrapping
+// only these presentation elements preserves their text in sentence order.
+const PUBMED_INLINE_TAGS_TO_UNWRAP = ['b', 'i', 'sup', 'sub', 'u'];
+
 const PMC_INLINE_TAGS_TO_UNWRAP = [
   'bold',
   'italic',
@@ -99,7 +103,7 @@ const pmcParser = new XMLParser({
  */
 export function parsePubmedEfetchXml(xml: string): ArticleMetadata[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const doc = pubmedParser.parse(xml) as any;
+  const doc = pubmedParser.parse(normalizePubmedInlineXml(xml)) as any;
   const articleSet = doc?.PubmedArticleSet ?? doc;
   const articles: unknown[] = asArray(articleSet?.PubmedArticle);
 
@@ -469,9 +473,17 @@ export function extractText(node: unknown): string {
   return '';
 }
 
+function normalizePubmedInlineXml(xml: string): string {
+  return unwrapInlineTags(xml, PUBMED_INLINE_TAGS_TO_UNWRAP);
+}
+
 function normalizePmcInlineXml(xml: string): string {
+  return unwrapInlineTags(xml, PMC_INLINE_TAGS_TO_UNWRAP);
+}
+
+function unwrapInlineTags(xml: string, tags: readonly string[]): string {
   let normalized = xml;
-  for (const tag of PMC_INLINE_TAGS_TO_UNWRAP) {
+  for (const tag of tags) {
     const tagPattern = new RegExp(
       `<${tag}\\b(?![^>]*\\/\\s*>)[^>]*>([\\s\\S]*?)<\\/${tag}>`,
       'gi'

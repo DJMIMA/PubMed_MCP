@@ -103,6 +103,23 @@ describe('parsePubmedEfetchXml', () => {
     expect(articles[0].abstract).toContain('This is the abstract.');
   });
 
+  it('preserves inline formatting text in title and abstract order', () => {
+    const xml = MINIMAL_XML
+      .replace(
+        '<ArticleTitle>A test article title</ArticleTitle>',
+        '<ArticleTitle>Effect of <i>TP53</i> on cancer</ArticleTitle>'
+      )
+      .replace(
+        '<AbstractText>This is the abstract.</AbstractText>',
+        '<AbstractText>We found <b>strong</b> evidence for H<sub>2</sub>O.</AbstractText>'
+      );
+
+    const articles = parsePubmedEfetchXml(xml);
+
+    expect(articles[0].title).toBe('Effect of TP53 on cancer');
+    expect(articles[0].abstract).toBe('We found strong evidence for H2O.');
+  });
+
   it('parses author information', () => {
     const articles = parsePubmedEfetchXml(MINIMAL_XML);
     const author = articles[0].authors[0];
