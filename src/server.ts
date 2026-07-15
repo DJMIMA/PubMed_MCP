@@ -52,8 +52,12 @@ export function createServer(): McpServer {
   server.tool(
     'search_articles',
     'Search PubMed for biomedical articles. Returns PMIDs and result set metadata. ' +
-      'Supports PubMed query syntax (Boolean operators, field tags like [MeSH Terms], ' +
-      '[Author], [Title], etc.), date filters, and sort options. ' +
+      'Untagged terms undergo automatic term mapping (ATM); use field to restrict all ' +
+      'untagged terms to one PubMed field. Explicit field tags in the query take ' +
+      'precedence for tagged terms. Before concluding that a low or zero count means ' +
+      'no literature exists, inspect query_translation, warnings, and errors. To search ' +
+      'multiple words reliably in one field, tag each term; when a quoted phrase is not ' +
+      'indexed, use a proximity search such as [ti:~0] or [tiab:~0]. ' +
       'Use get_article_metadata to retrieve full details for the returned PMIDs.',
     searchArticlesSchema,
     async (params) => {

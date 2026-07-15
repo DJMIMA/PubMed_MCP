@@ -96,6 +96,7 @@ export class NcbiClient {
     retmax?: number;
     retstart?: number;
     sort?: string;
+    field?: string;
     datetype?: string;
     mindate?: string;
     maxdate?: string;
@@ -111,6 +112,7 @@ export class NcbiClient {
           retstart: params.retstart ?? 0,
           term: params.term,
           ...(params.sort ? { sort: params.sort } : {}),
+          ...(params.field ? { field: params.field } : {}),
           ...(params.datetype ? { datetype: params.datetype } : {}),
           ...(params.mindate ? { mindate: params.mindate } : {}),
           ...(params.maxdate ? { maxdate: params.maxdate } : {}),
@@ -275,7 +277,11 @@ export interface EsearchResult {
   translationset: unknown[];
   querytranslation: string;
   errorlist?: { phrasesnotfound?: string[]; fieldsnotfound?: string[] };
-  warninglist?: { phrasesignored?: string[]; quotedphrasesnotfound?: string[] };
+  warninglist?: {
+    phrasesignored?: string[];
+    quotedphrasesnotfound?: string[];
+    outputmessages?: string[];
+  };
 }
 
 export interface ElinkResponse {

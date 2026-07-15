@@ -5,6 +5,18 @@
 
 // ─── search_articles ────────────────────────────────────────────────────────
 
+export interface SearchArticlesWarnings {
+  phrases_ignored: string[];
+  quoted_phrases_not_found: string[];
+  output_messages: string[];
+}
+
+/** NCBI ESearch query diagnostics, not transport or MCP execution errors. */
+export interface SearchArticlesErrors {
+  phrases_not_found: string[];
+  fields_not_found: string[];
+}
+
 export interface SearchArticlesResponse {
   pmids: string[];
   total_count: number;
@@ -12,6 +24,8 @@ export interface SearchArticlesResponse {
   query: string;
   query_translation: string;
   has_more: boolean;
+  warnings: SearchArticlesWarnings;
+  errors: SearchArticlesErrors;
 }
 
 // ─── get_article_metadata ────────────────────────────────────────────────────

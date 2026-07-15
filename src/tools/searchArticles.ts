@@ -17,6 +17,15 @@ const SORT_MAP: Record<string, string> = {
   journal_name: 'JournalName',
 };
 
+const SEARCH_FIELDS = [
+  'title',
+  'tiab',
+  'mesh',
+  'author',
+  'journal',
+  'affiliation',
+] as const;
+
 export const searchArticlesSchema = {
   query: z
     .string()
@@ -54,6 +63,15 @@ export const searchArticlesSchema = {
         'author: alphabetical by first author; ' +
         'journal_name: alphabetical by journal.'
     ),
+  field: z
+    .enum(SEARCH_FIELDS)
+    .optional()
+    .describe(
+      'Optional PubMed field applied to every untagged term in the query: ' +
+        'title, tiab (title/abstract), mesh, author, journal, or affiliation. ' +
+        'This prevents cross-field automatic term mapping for those terms. ' +
+        'An explicit field tag in the query takes precedence for the tagged term.'
+    ),
   date_from: z
     .string()
     .optional()
@@ -84,6 +102,7 @@ export type SearchArticlesParams = {
   max_results?: number;
   retstart?: number;
   sort?: 'relevance' | 'pub_date' | 'author' | 'journal_name';
+  field?: (typeof SEARCH_FIELDS)[number];
   date_from?: string;
   date_to?: string;
   datetype?: 'pdat' | 'edat' | 'mdat';
@@ -101,6 +120,7 @@ export async function searchArticles(
     retmax,
     retstart,
     sort: params.sort ? SORT_MAP[params.sort] : undefined,
+    ...(params.field ? { field: params.field } : {}),
     datetype: params.datetype ?? 'pdat',
     mindate: params.date_from,
     maxdate: params.date_to,
@@ -117,5 +137,14 @@ export async function searchArticles(
     query: params.query,
     query_translation: result.querytranslation ?? '',
     has_more,
+    warnings: {
+      phrases_ignored: result.warninglist?.phrasesignored ?? [],
+      quoted_phrases_not_found: result.warninglist?.quotedphrasesnotfound ?? [],
+      output_messages: result.warninglist?.outputmessages ?? [],
+    },
+    errors: {
+      phrases_not_found: result.errorlist?.phrasesnotfound ?? [],
+      fields_not_found: result.errorlist?.fieldsnotfound ?? [],
+    },
   };
 }

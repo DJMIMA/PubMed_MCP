@@ -36,6 +36,15 @@ describe('NcbiClient', () => {
           idlist: ['12345', '67890'],
           translationset: [],
           querytranslation: '"CRISPR"[All Fields]',
+          warninglist: {
+            phrasesignored: [],
+            quotedphrasesnotfound: ['"CRISPR gene therapy"'],
+            outputmessages: ['Quoted phrase not found.'],
+          },
+          errorlist: {
+            phrasesnotfound: ['missing phrase'],
+            fieldsnotfound: [],
+          },
         },
       };
       mockedAxios.get = vi.fn().mockResolvedValue({ data: mockData });
@@ -45,12 +54,20 @@ describe('NcbiClient', () => {
       expect(result.count).toBe('42');
       expect(result.idlist).toEqual(['12345', '67890']);
       expect(result.querytranslation).toBe('"CRISPR"[All Fields]');
+      expect(result.warninglist?.quotedphrasesnotfound).toEqual([
+        '"CRISPR gene therapy"',
+      ]);
+      expect(result.warninglist?.outputmessages).toEqual([
+        'Quoted phrase not found.',
+      ]);
+      expect(result.errorlist?.phrasesnotfound).toEqual(['missing phrase']);
 
       const callParams = (mockedAxios.get as ReturnType<typeof vi.fn>).mock.calls[0][1].params;
       expect(callParams.db).toBe('pubmed');
       expect(callParams.retmode).toBe('json');
       expect(callParams.term).toBe('CRISPR');
       expect(callParams.api_key).toBe('test-api-key');
+      expect(callParams.field).toBeUndefined();
     });
 
     it('passes sort and date parameters correctly', async () => {
@@ -69,6 +86,7 @@ describe('NcbiClient', () => {
       await client.esearch({
         term: 'test',
         sort: 'pub_date',
+        field: 'tiab',
         mindate: '2020/01/01',
         maxdate: '2023/12/31',
         datetype: 'pdat',
@@ -76,6 +94,7 @@ describe('NcbiClient', () => {
 
       const callParams = (mockedAxios.get as ReturnType<typeof vi.fn>).mock.calls[0][1].params;
       expect(callParams.sort).toBe('pub_date');
+      expect(callParams.field).toBe('tiab');
       expect(callParams.mindate).toBe('2020/01/01');
       expect(callParams.maxdate).toBe('2023/12/31');
       expect(callParams.datetype).toBe('pdat');

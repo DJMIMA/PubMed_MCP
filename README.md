@@ -6,13 +6,58 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
 
 | Tool | 説明 |
 |------|------|
-| `search_articles` | PubMed構文またはキーワードで文献を検索。日付フィルタ・ソート・ページネーション対応 |
+| `search_articles` | PubMed構文またはキーワードで文献を検索。ATM診断・フィールド制限・日付フィルタ・ソート・ページネーション対応 |
 | `get_article_metadata` | PMIDを指定してタイトル・抄録・著者・MeSH語・キーワードなどを取得 |
 | `find_related_articles` | ELinkを使って関連文献や他DBへのリンクを検索 |
 | `lookup_article_by_citation` | 雑誌名・年・巻・筆頭著者などの引用情報からPMIDを逆引き |
 | `convert_article_ids` | PMID・PMCID・DOI を相互変換 |
 | `get_full_text_article` | PMC Open Access記事の本文全文をプレーンテキストで取得 |
 | `get_copyright_status` | 記事のPMC収録状況・ライセンス・OAステータスを確認 |
+
+---
+
+## `search_articles` の ATM 診断とフィールド制限
+
+PubMed はタグのない検索語に Automatic Term Mapping（ATM）を適用します。ATM は MeSH、
+雑誌名、著者名などへ検索語を展開するため、意図しない変換や、引用句が句インデックスに
+存在しないことによる検索のフォールバックが起こる場合があります。
+
+`search_articles` は次の任意の `field` 値を受け取り、クエリ内のタグなし語をすべてその
+フィールドへ制限します。
+
+- `title`
+- `tiab`（Title/Abstract）
+- `mesh`
+- `author`
+- `journal`
+- `affiliation`
+
+クエリ内に明示的なフィールドタグがある語では、そのタグが `field` より優先されます。
+`field` を省略した場合の検索動作は従来どおりです。`all` は ATM を無効化しないため、
+公開パラメータには含めていません。
+
+レスポンスには、NCBI ESearch の診断を正規化した次のフィールドが常に含まれます。
+
+```json
+{
+  "warnings": {
+    "phrases_ignored": [],
+    "quoted_phrases_not_found": [],
+    "output_messages": []
+  },
+  "errors": {
+    "phrases_not_found": [],
+    "fields_not_found": []
+  }
+}
+```
+
+この `errors` は NCBI ESearch が返す検索語・フィールドの診断であり、通信エラーや
+MCP ツール自体の実行エラーとは別の情報です。
+これらのキーは診断がない場合も空配列として返ります。低件数や0件を「文献なし」と判断する
+前に、`query_translation`、`warnings`、`errors` を確認してください。複数語を同一フィールドで
+確実に検索する場合は各語へタグを付け、引用句が句インデックスにない場合の隣接検索には
+`[ti:~0]` または `[tiab:~0]` を使用できます。
 
 ---
 
