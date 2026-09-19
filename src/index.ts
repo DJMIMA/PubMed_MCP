@@ -15,7 +15,7 @@
  *     Start with:  PORT=8080 node dist/index.js
  *
  * Environment variables:
- *   NCBI_API_KEY — NCBI API key; raises rate limit from 3 → 9 req/s
+ *   NCBI_API_KEY — NCBI API key; raises rate limit from 3 → 8 req/s
  *                  Register free at https://www.ncbi.nlm.nih.gov/account/
  *   PORT         — When set, enables HTTP mode on the specified port.
  */

@@ -3,7 +3,7 @@
  * All HTTP calls are mocked — no real network requests are made.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import axios from 'axios';
 import { NcbiClient, NcbiApiError, NcbiNetworkError } from '../../src/pubmed/client.js';
 
@@ -227,6 +227,73 @@ describe('NcbiClient', () => {
       expect(result.records[0].pmcid).toBe('PMC7984072');
       expect(result.records[0].doi).toBe('10.1038/s41586-021-03819-2');
       expect(result.request.echo).toBe('api_key=<redacted>&ids=33526711&format=json');
+    });
+  });
+
+  // ── rate limiting & 429 handling ──────────────────────────────────────────
+
+  describe('rate limiting', () => {
+    const esearchOk = { data: { esearchresult: { idlist: [] } } };
+    const rateLimited = (headers: Record<string, string> = {}) =>
+      Object.assign(new Error('Request failed with status code 429'), {
+        isAxiosError: true,
+        response: {
+          status: 429,
+          headers,
+          data: { error: 'API rate limit exceeded', 'api-key': 'test-api-key', count: '11', limit: '10' },
+        },
+      });
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.spyOn(axios, 'isAxiosError').mockImplementation(
+        (e: unknown) => Boolean((e as { isAxiosError?: boolean })?.isAxiosError)
+      );
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('spaces concurrent calls at 8 req/s instead of firing them together', async () => {
+      const sendTimes: number[] = [];
+      mockedAxios.get = vi.fn().mockImplementation(async () => {
+        sendTimes.push(Date.now());
+        return esearchOk;
+      });
+
+      const calls = Array.from({ length: 5 }, () => client.esearch({ term: 'x' }));
+      await vi.runAllTimersAsync();
+      await Promise.all(calls);
+
+      const gaps = sendTimes.slice(1).map((t, i) => t - sendTimes[i]);
+      expect(gaps).toHaveLength(4);
+      for (const gap of gaps) expect(gap).toBeGreaterThanOrEqual(125);
+    });
+
+    it('retries after HTTP 429 and succeeds', async () => {
+      mockedAxios.get = vi
+        .fn()
+        .mockRejectedValueOnce(rateLimited())
+        .mockResolvedValueOnce(esearchOk);
+
+      const call = client.esearch({ term: 'x' });
+      await vi.runAllTimersAsync();
+
+      await expect(call).resolves.toEqual({ idlist: [] });
+      expect(mockedAxios.get).toHaveBeenCalledTimes(2);
+    });
+
+    it('gives up after 2 retries with a readable, key-redacted error body', async () => {
+      mockedAxios.get = vi.fn().mockRejectedValue(rateLimited({ 'retry-after': '1' }));
+
+      const call = client.esearch({ term: 'x' });
+      const assertion = expect(call).rejects.toThrow(
+        /HTTP 429: \{"error":"API rate limit exceeded","api-key":"<redacted>"/
+      );
+      await vi.runAllTimersAsync();
+      await assertion;
+      expect(mockedAxios.get).toHaveBeenCalledTimes(3);
     });
   });
 

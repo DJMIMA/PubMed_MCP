@@ -6,6 +6,8 @@
  * Rate limits:
  *   - Without API key: 3 requests/sec
  *   - With API key:   10 requests/sec
+ * NCBI counts requests by arrival time, so we send at 8 req/s with a key to
+ * absorb network jitter, and retry briefly on HTTP 429.
  */
 
 import axios from 'axios';
@@ -20,24 +22,36 @@ const TOOL_EMAIL = 'pubmed-mcp@example.com';
 // ─── Rate limiter ────────────────────────────────────────────────────────────
 
 class RateLimiter {
-  private lastRequestTime = 0;
+  private nextSlot = 0;
   private readonly minInterval: number; // ms
 
   constructor(requestsPerSecond: number) {
     this.minInterval = 1000 / requestsPerSecond;
   }
 
+  /**
+   * Reserve the next send slot synchronously, then wait for it.
+   * Reserving before awaiting keeps concurrent callers spaced out instead of
+   * letting them all read the same timestamp and fire together.
+   */
   async throttle(): Promise<void> {
     const now = Date.now();
-    const elapsed = now - this.lastRequestTime;
-    if (elapsed < this.minInterval) {
-      await new Promise<void>((resolve) =>
-        setTimeout(resolve, this.minInterval - elapsed)
-      );
+    const slot = Math.max(now, this.nextSlot);
+    this.nextSlot = slot + this.minInterval;
+    if (slot > now) {
+      await sleep(slot - now);
     }
-    this.lastRequestTime = Date.now();
   }
 }
+
+function sleep(ms: number): Promise<void> {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+/** Retries after an HTTP 429 before giving up. */
+const MAX_RATE_LIMIT_RETRIES = 2;
+/** Backoff per retry when NCBI sends no usable Retry-After header. */
+const RATE_LIMIT_BACKOFF_MS = 1000;
 
 // ─── Error types ─────────────────────────────────────────────────────────────
 
@@ -72,7 +86,7 @@ export class NcbiClient {
     // Trim whitespace/newlines that can sneak in from Secret Manager or .env files.
     const raw = apiKey ?? process.env.NCBI_API_KEY;
     this.apiKey = raw?.trim() || undefined;
-    const rps = this.apiKey ? 9 : 3; // 9 req/s (safety margin below NCBI's 10 req/s limit)
+    const rps = this.apiKey ? 8 : 3; // 8 req/s (margin below NCBI's 10 req/s limit for arrival jitter)
     this.rateLimiter = new RateLimiter(rps);
   }
 
@@ -85,6 +99,25 @@ export class NcbiClient {
       params['api_key'] = this.apiKey;
     }
     return params;
+  }
+
+  /**
+   * Throttle, send, and retry on HTTP 429. Every NCBI call goes through here
+   * so each attempt (including retries) takes its own rate-limiter slot.
+   */
+  private async request<T>(operation: string, send: () => Promise<T>): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      await this.rateLimiter.throttle();
+      try {
+        return await send();
+      } catch (err) {
+        if (attempt < MAX_RATE_LIMIT_RETRIES && isRateLimited(err)) {
+          await sleep(retryDelayMs(err, attempt));
+          continue;
+        }
+        throw wrapAxiosError(err, operation);
+      }
+    }
   }
 
   /**
@@ -101,9 +134,8 @@ export class NcbiClient {
     mindate?: string;
     maxdate?: string;
   }): Promise<EsearchResult> {
-    await this.rateLimiter.throttle();
-    try {
-      const response = await axios.get(`${NCBI_BASE_URL}esearch.fcgi`, {
+    const response = await this.request('esearch', () =>
+      axios.get(`${NCBI_BASE_URL}esearch.fcgi`, {
         params: {
           ...this.commonParams(),
           db: 'pubmed',
@@ -117,11 +149,9 @@ export class NcbiClient {
           ...(params.mindate ? { mindate: params.mindate } : {}),
           ...(params.maxdate ? { maxdate: params.maxdate } : {}),
         },
-      });
-      return (response.data as { esearchresult: EsearchResult }).esearchresult;
-    } catch (err) {
-      throw wrapAxiosError(err, 'esearch');
-    }
+      })
+    );
+    return (response.data as { esearchresult: EsearchResult }).esearchresult;
   }
 
   /**
@@ -134,10 +164,9 @@ export class NcbiClient {
     retmode?: string;
     rettype?: string;
   }): Promise<string> {
-    await this.rateLimiter.throttle();
     const idStr = Array.isArray(params.id) ? params.id.join(',') : params.id;
-    try {
-      const response = await axios.get(`${NCBI_BASE_URL}efetch.fcgi`, {
+    const response = await this.request('efetch', () =>
+      axios.get(`${NCBI_BASE_URL}efetch.fcgi`, {
         params: {
           ...this.commonParams(),
           db: params.db,
@@ -146,11 +175,9 @@ export class NcbiClient {
           ...(params.rettype ? { rettype: params.rettype } : {}),
         },
         responseType: 'text',
-      });
-      return response.data as string;
-    } catch (err) {
-      throw wrapAxiosError(err, 'efetch');
-    }
+      })
+    );
+    return response.data as string;
   }
 
   /**
@@ -163,7 +190,6 @@ export class NcbiClient {
     linkname: string;
     cmd?: string;
   }): Promise<ElinkResponse> {
-    await this.rateLimiter.throttle();
     // Build URL manually to allow repeated id= params
     const searchParams = new URLSearchParams({
       ...this.commonParams(),
@@ -175,14 +201,10 @@ export class NcbiClient {
     for (const id of params.id) {
       searchParams.append('id', id);
     }
-    try {
-      const response = await axios.get(
-        `${NCBI_BASE_URL}elink.fcgi?${searchParams.toString()}`
-      );
-      return response.data as ElinkResponse;
-    } catch (err) {
-      throw wrapAxiosError(err, 'elink');
-    }
+    const response = await this.request('elink', () =>
+      axios.get(`${NCBI_BASE_URL}elink.fcgi?${searchParams.toString()}`)
+    );
+    return response.data as ElinkResponse;
   }
 
   /**
@@ -190,15 +212,14 @@ export class NcbiClient {
    * Returns raw text with pipe-delimited fields.
    */
   async ecitmatch(citations: CitationInput[]): Promise<string> {
-    await this.rateLimiter.throttle();
     const bdata = citations
       .map(
         (c) =>
           `${c.journal}|${c.year}|${c.volume}|${c.first_page}|${c.author}|${c.key}|`
       )
       .join('\r');
-    try {
-      const response = await axios.get(`${NCBI_BASE_URL}ecitmatch.cgi`, {
+    const response = await this.request('ecitmatch', () =>
+      axios.get(`${NCBI_BASE_URL}ecitmatch.cgi`, {
         params: {
           ...this.commonParams(),
           db: 'pubmed',
@@ -207,20 +228,18 @@ export class NcbiClient {
           bdata,
         },
         responseType: 'text',
-      });
-      const contentType = String(response.headers?.['content-type'] ?? '').toLowerCase();
-      const text = String(response.data ?? '');
-      if (contentType.includes('html') || looksLikeHtml(text)) {
-        throw new NcbiApiError(
-          'NCBI ecitmatch returned HTML instead of citation match text. ' +
-            'Check the ECitMatch endpoint and bdata parameter format.',
-          response.status
-        );
-      }
-      return text;
-    } catch (err) {
-      throw wrapAxiosError(err, 'ecitmatch');
+      })
+    );
+    const contentType = String(response.headers?.['content-type'] ?? '').toLowerCase();
+    const text = String(response.data ?? '');
+    if (contentType.includes('html') || looksLikeHtml(text)) {
+      throw new NcbiApiError(
+        'NCBI ecitmatch returned HTML instead of citation match text. ' +
+          'Check the ECitMatch endpoint and bdata parameter format.',
+        response.status
+      );
     }
+    return text;
   }
 
   /**
@@ -230,9 +249,8 @@ export class NcbiClient {
     ids: string[];
     idtype?: string;
   }): Promise<IdConvResponse> {
-    await this.rateLimiter.throttle();
-    try {
-      const response = await axios.get(PMC_ID_CONVERTER_URL, {
+    const response = await this.request('idConvert', () =>
+      axios.get(PMC_ID_CONVERTER_URL, {
         params: {
           tool: TOOL_NAME,
           email: TOOL_EMAIL,
@@ -242,11 +260,9 @@ export class NcbiClient {
           idtype: params.idtype ?? 'pmid',
           versions: 'no',
         },
-      });
-      return sanitizeIdConvResponse(response.data as IdConvResponse);
-    } catch (err) {
-      throw wrapAxiosError(err, 'idConvert');
-    }
+      })
+    );
+    return sanitizeIdConvResponse(response.data as IdConvResponse);
   }
 
   /**
@@ -254,16 +270,13 @@ export class NcbiClient {
    * Returns raw XML text.
    */
   async oaFetch(pmcid: string): Promise<string> {
-    await this.rateLimiter.throttle();
-    try {
-      const response = await axios.get(PMC_OA_URL, {
+    const response = await this.request('oaFetch', () =>
+      axios.get(PMC_OA_URL, {
         params: { id: pmcid },
         responseType: 'text',
-      });
-      return response.data as string;
-    } catch (err) {
-      throw wrapAxiosError(err, 'oaFetch');
-    }
+      })
+    );
+    return response.data as string;
   }
 }
 
@@ -343,8 +356,9 @@ function wrapAxiosError(err: unknown, operation: string): Error {
   }
   if (axios.isAxiosError(err)) {
     const status = err.response?.status;
-    const message = (err.response?.data as string | undefined) ?? err.message;
     if (status !== undefined) {
+      const body = describeResponseBody(err.response?.data);
+      const message = redactApiKey(body || err.message);
       return new NcbiApiError(
         `NCBI ${operation} returned HTTP ${status}: ${message}`,
         status
@@ -357,6 +371,45 @@ function wrapAxiosError(err: unknown, operation: string): Error {
   }
   if (err instanceof Error) return err;
   return new Error(`Unknown error during NCBI ${operation}`);
+}
+
+const MAX_ERROR_BODY_LENGTH = 300;
+
+/** Render an error response body (JSON object, string, or buffer) as readable text. */
+function describeResponseBody(data: unknown): string {
+  if (data === undefined || data === null) return '';
+  let text: string;
+  if (typeof data === 'string') {
+    text = data;
+  } else if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
+    text = Buffer.from(data as ArrayBuffer).toString('utf8');
+  } else {
+    try {
+      text = JSON.stringify(data);
+    } catch {
+      text = String(data);
+    }
+  }
+  text = text.trim();
+  return text.length > MAX_ERROR_BODY_LENGTH
+    ? `${text.slice(0, MAX_ERROR_BODY_LENGTH)}…`
+    : text;
+}
+
+function isRateLimited(err: unknown): boolean {
+  return axios.isAxiosError(err) && err.response?.status === 429;
+}
+
+/** Honor a numeric Retry-After header (seconds, capped); otherwise back off linearly. */
+function retryDelayMs(err: unknown, attempt: number): number {
+  const fallback = RATE_LIMIT_BACKOFF_MS * (attempt + 1);
+  if (!axios.isAxiosError(err)) return fallback;
+  const headers = err.response?.headers as Record<string, unknown> | undefined;
+  const seconds = Number(headers?.['retry-after']);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return Math.min(seconds * 1000, 10_000);
+  }
+  return fallback;
 }
 
 function looksLikeHtml(text: string): boolean {
@@ -383,5 +436,8 @@ function sanitizeIdConvResponse(response: IdConvResponse): IdConvResponse {
 }
 
 function redactApiKey(value: string): string {
-  return value.replace(/(^|[?&])(api_key=)[^&\s]+/gi, '$1$2<redacted>');
+  // NCBI echoes the key both as a query param and as "api-key" in JSON error bodies.
+  return value
+    .replace(/(^|[?&])(api_key=)[^&\s]+/gi, '$1$2<redacted>')
+    .replace(/("api[-_]key"\s*:\s*")[^"]*/gi, '$1<redacted>');
 }
