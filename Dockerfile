@@ -1,5 +1,5 @@
 # ── Stage 1: ビルド ───────────────────────────────────────────────────────
-FROM node:20-slim AS builder
+FROM node:24-slim AS builder
 
 WORKDIR /app
 
@@ -12,7 +12,7 @@ COPY tsconfig.json ./
 RUN npm run build
 
 # ── Stage 2: 実行イメージ ─────────────────────────────────────────────────
-FROM node:20-slim
+FROM node:24-slim
 
 WORKDIR /app
 

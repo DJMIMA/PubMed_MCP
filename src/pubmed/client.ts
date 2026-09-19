@@ -10,11 +10,23 @@
  * absorb network jitter, and retry briefly on HTTP 429.
  */
 
+import https from 'node:https';
 import axios from 'axios';
 
 const NCBI_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
 const PMC_ID_CONVERTER_URL = 'https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/';
 const PMC_OA_URL = 'https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi';
+
+/**
+ * Shared agent for every NCBI request.
+ * - ALPN: pmc.ncbi.nlm.nih.gov answers 403 to Node's default TLS handshake,
+ *   which advertises no ALPN protocol; offering http/1.1 is accepted.
+ * - keepAlive: reuse TLS connections across calls instead of re-handshaking.
+ */
+const HTTPS_AGENT = new https.Agent({
+  ALPNProtocols: ['http/1.1'],
+  keepAlive: true,
+});
 
 const TOOL_NAME = 'pubmed-mcp';
 const TOOL_EMAIL = 'pubmed-mcp@example.com';
@@ -136,6 +148,7 @@ export class NcbiClient {
   }): Promise<EsearchResult> {
     const response = await this.request('esearch', () =>
       axios.get(`${NCBI_BASE_URL}esearch.fcgi`, {
+        httpsAgent: HTTPS_AGENT,
         params: {
           ...this.commonParams(),
           db: 'pubmed',
@@ -167,6 +180,7 @@ export class NcbiClient {
     const idStr = Array.isArray(params.id) ? params.id.join(',') : params.id;
     const response = await this.request('efetch', () =>
       axios.get(`${NCBI_BASE_URL}efetch.fcgi`, {
+        httpsAgent: HTTPS_AGENT,
         params: {
           ...this.commonParams(),
           db: params.db,
@@ -202,7 +216,9 @@ export class NcbiClient {
       searchParams.append('id', id);
     }
     const response = await this.request('elink', () =>
-      axios.get(`${NCBI_BASE_URL}elink.fcgi?${searchParams.toString()}`)
+      axios.get(`${NCBI_BASE_URL}elink.fcgi?${searchParams.toString()}`, {
+        httpsAgent: HTTPS_AGENT,
+      })
     );
     return response.data as ElinkResponse;
   }
@@ -220,6 +236,7 @@ export class NcbiClient {
       .join('\r');
     const response = await this.request('ecitmatch', () =>
       axios.get(`${NCBI_BASE_URL}ecitmatch.cgi`, {
+        httpsAgent: HTTPS_AGENT,
         params: {
           ...this.commonParams(),
           db: 'pubmed',
@@ -251,6 +268,7 @@ export class NcbiClient {
   }): Promise<IdConvResponse> {
     const response = await this.request('idConvert', () =>
       axios.get(PMC_ID_CONVERTER_URL, {
+        httpsAgent: HTTPS_AGENT,
         params: {
           tool: TOOL_NAME,
           email: TOOL_EMAIL,
@@ -272,6 +290,7 @@ export class NcbiClient {
   async oaFetch(pmcid: string): Promise<string> {
     const response = await this.request('oaFetch', () =>
       axios.get(PMC_OA_URL, {
+        httpsAgent: HTTPS_AGENT,
         params: { id: pmcid },
         responseType: 'text',
       })

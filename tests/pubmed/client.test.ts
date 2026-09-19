@@ -230,6 +230,23 @@ describe('NcbiClient', () => {
     });
   });
 
+  // ── HTTPS agent ───────────────────────────────────────────────────────────
+
+  describe('https agent', () => {
+    it('sends every request through a keep-alive agent that offers ALPN http/1.1', async () => {
+      mockedAxios.get = vi.fn().mockResolvedValue({ data: { linksets: [] } });
+
+      await client.elink({ dbfrom: 'pubmed', id: ['1'], linkname: 'pubmed_pubmed' });
+      await client.oaFetch('PMC1');
+
+      for (const call of (mockedAxios.get as ReturnType<typeof vi.fn>).mock.calls) {
+        const agent = call[1].httpsAgent;
+        expect(agent.options.ALPNProtocols).toEqual(['http/1.1']);
+        expect(agent.keepAlive).toBe(true);
+      }
+    });
+  });
+
   // ── rate limiting & 429 handling ──────────────────────────────────────────
 
   describe('rate limiting', () => {
