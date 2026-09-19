@@ -22,9 +22,11 @@
 
 // Load .env file if present. Silently skipped in production where env vars
 // are injected by the runtime (Cloud Run, Docker --env, etc.).
+// quiet: dotenv >=17 logs to stdout by default, which corrupts the stdio
+// JSON-RPC stream.
 import { config as loadDotenv } from 'dotenv';
 import type { Request, Response, NextFunction } from 'express';
-loadDotenv();
+loadDotenv({ quiet: true });
 
 import { createServer } from './server.js';
 
