@@ -12,7 +12,7 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
 | `lookup_article_by_citation` | 雑誌名・年・巻・筆頭著者などの引用情報からPMIDを逆引き |
 | `convert_article_ids` | PMID・PMCID・DOI を相互変換 |
 | `get_full_text_article` | PMC Open Access記事の本文全文をプレーンテキストで取得 |
-| `get_copyright_status` | 記事のPMC収録状況・ライセンス・OAステータスを確認 |
+| `get_copyright_status` | 全文取得の可否（`has_full_text`）・ライセンス・著作権表示・OAステータスを確認。PMCのEFetchメタデータを使用（旧PMC OA Web Serviceは2026-08-25に廃止） |
 
 ---
 

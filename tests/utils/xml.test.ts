@@ -7,7 +7,7 @@ import {
   extractText,
   parsePubmedEfetchXml,
   parsePmcEfetchXml,
-  parsePmcOaXml,
+  parsePmcAccessXml,
 } from '../../src/utils/xml.js';
 
 describe('extractText', () => {
@@ -399,37 +399,48 @@ describe('parsePmcEfetchXml', () => {
   });
 });
 
-describe('parsePmcOaXml', () => {
-  it('parses PMC OA Service records with direct link elements', () => {
-    const xml = `<?xml version="1.0"?>
-<OA>
-  <responseDate>2019-01-28 10:41:16</responseDate>
-  <request id="PMC5334499">https://www.ncbi.nlm.nih.gov/utils/oa/oa.fcgi?id=PMC5334499</request>
-  <records returned-count="1" total-count="1">
-    <record id="PMC5334499" citation="World J Radiol. 2017 Feb 28; 9(2):27-33"
-      license="CC BY-NC" retracted="no">
-      <link format="tgz" updated="2017-03-17 13:10:45"
-        href="ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_package/8e/71/PMC5334499.tar.gz"/>
-    </record>
-  </records>
-</OA>`;
+describe('parsePmcAccessXml', () => {
+  it('reads open-access flag, license code, and copyright from PMC custom-meta', () => {
+    const xml = `<pmc-articleset><article>
+      <front><article-meta>
+        <article-id pub-id-type="pmcid">PMC10873872</article-id>
+        <permissions>
+          <copyright-statement>© 2023 The Authors</copyright-statement>
+          <license><ali:license_ref>https://creativecommons.org/licenses/by-nc-nd/4.0/</ali:license_ref></license>
+        </permissions>
+        <custom-meta-group>
+          <custom-meta><meta-name>pmc-status-qastatus</meta-name><meta-value>0</meta-value></custom-meta>
+          <custom-meta><meta-name>pmc-prop-open-access</meta-name><meta-value>yes</meta-value></custom-meta>
+          <custom-meta><meta-name>pmc-license-ref</meta-name><meta-value>CC BY-NC-ND</meta-value></custom-meta>
+        </custom-meta-group>
+      </article-meta></front>
+      <body><sec><p>Results were <italic>significant</italic>.</p></sec></body>
+    </article></pmc-articleset>`;
 
-    const result = parsePmcOaXml(xml, 'PMC5334499');
-
-    expect(result).toEqual({
-      pmcid: 'PMC5334499',
-      license: 'CC BY-NC',
-      ftp: 'ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_package/8e/71/PMC5334499.tar.gz',
-      isOpenAccess: true,
-    });
+    expect(parsePmcAccessXml(xml)).toEqual([
+      {
+        pmcid: 'PMC10873872',
+        isOpenAccess: true,
+        hasFullText: true,
+        license: 'CC BY-NC-ND',
+        copyrightStatement: '© 2023 The Authors',
+      },
+    ]);
   });
 
-  it('returns non-open-access for OA Service error responses', () => {
-    const result = parsePmcOaXml(
-      '<OA><error code="idIsNotOpenAccess">Not in OA subset</error></OA>',
-      'PMC123'
-    );
+  it('reports no full text and not open access for publisher-restricted records', () => {
+    const xml = `<pmc-articleset><article>
+      <!--The publisher of this article does not allow downloading of the full text in XML form.-->
+      <front><article-meta>
+        <article-id pub-id-type="pmcid">PMC13580969</article-id>
+        <custom-meta-group>
+          <custom-meta><meta-name>pmc-prop-open-access</meta-name><meta-value>no</meta-value></custom-meta>
+        </custom-meta-group>
+      </article-meta></front>
+    </article></pmc-articleset>`;
 
-    expect(result).toEqual({ pmcid: 'PMC123', isOpenAccess: false });
+    expect(parsePmcAccessXml(xml)).toEqual([
+      { pmcid: 'PMC13580969', isOpenAccess: false, hasFullText: false },
+    ]);
   });
 });

@@ -180,9 +180,10 @@ export function createServer(): McpServer {
   server.tool(
     'get_copyright_status',
     'Check the copyright and open-access status for PubMed articles. ' +
-      'Reports whether full text is available in PMC, the license type ' +
-      '(e.g., CC BY, CC BY-NC), and whether the article is open access. ' +
-      'Articles not indexed in PMC will show has_full_text: false.',
+      'has_full_text: true means get_full_text_article can return the article text; ' +
+      'it is false for articles not in PMC and for PMC articles whose publisher ' +
+      'does not allow full-text download. Also reports the license (e.g., CC BY, ' +
+      'CC BY-NC-ND), copyright statement, and whether PMC marks the article open access.',
     getCopyrightStatusSchema,
     async (params) => {
       try {

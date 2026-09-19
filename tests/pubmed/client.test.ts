@@ -237,7 +237,7 @@ describe('NcbiClient', () => {
       mockedAxios.get = vi.fn().mockResolvedValue({ data: { linksets: [] } });
 
       await client.elink({ dbfrom: 'pubmed', id: ['1'], linkname: 'pubmed_pubmed' });
-      await client.oaFetch('PMC1');
+      await client.efetch({ db: 'pmc', id: '1' });
 
       for (const call of (mockedAxios.get as ReturnType<typeof vi.fn>).mock.calls) {
         const agent = call[1].httpsAgent;
@@ -311,20 +311,6 @@ describe('NcbiClient', () => {
       await vi.runAllTimersAsync();
       await assertion;
       expect(mockedAxios.get).toHaveBeenCalledTimes(3);
-    });
-  });
-
-  // ── oaFetch ───────────────────────────────────────────────────────────────
-
-  describe('oaFetch', () => {
-    it('calls the PMC OA endpoint without a format filter', async () => {
-      mockedAxios.get = vi.fn().mockResolvedValue({ data: '<OA/>' });
-
-      await client.oaFetch('PMC9321363');
-
-      const call = (mockedAxios.get as ReturnType<typeof vi.fn>).mock.calls[0];
-      expect(call[1].params).toEqual({ id: 'PMC9321363' });
-      expect(call[1].responseType).toBe('text');
     });
   });
 });

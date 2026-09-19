@@ -2,17 +2,19 @@
  * Tool: get_copyright_status
  *
  * Check copyright and open-access status for PubMed articles.
- * Uses the PMC Open Access Service and NCBI ID Converter to determine
- * whether full text is available and under what license.
+ * Maps PMIDs to PMCIDs with the NCBI ID Converter, then reads PMC's own
+ * access metadata from E-utilities EFetch (db=pmc). The PMC OA Web Service
+ * previously used here was retired by NCBI on 2026-08-25.
  *
- * Note: This tool can only report OA status for articles indexed in PMC.
- * For PubMed-only articles (no PMC record), has_full_text will be false.
+ * has_full_text means get_full_text_article can return text for the article.
+ * It is false for PubMed-only articles and for PMC articles whose publisher
+ * does not allow full-text XML download.
  */
 
 import { z } from 'zod';
 import type { NcbiClient } from '../pubmed/client.js';
 import type { GetCopyrightStatusResponse, CopyrightStatus } from '../pubmed/types.js';
-import { parsePmcOaXml } from '../utils/xml.js';
+import { parsePmcAccessXml, type PmcAccessInfo } from '../utils/xml.js';
 
 export const getCopyrightStatusSchema = {
   pmids: z
@@ -25,6 +27,9 @@ export const getCopyrightStatusSchema = {
 export type GetCopyrightStatusParams = {
   pmids: string[];
 };
+
+/** Open-access articles come back as full JATS XML, so keep each EFetch modest. */
+const EFETCH_BATCH_SIZE = 20;
 
 export async function getCopyrightStatus(
   params: GetCopyrightStatusParams,
@@ -45,44 +50,52 @@ export async function getCopyrightStatus(
     }
   }
 
-  // Step 2: For each PMID that has a PMCID, query the OA service.
-  // Keep these requests sequential so batched inputs respect NCBI rate limits.
-  const statuses: CopyrightStatus[] = [];
-  for (const pmid of params.pmids) {
-    const pmcid = pmidToPmcid.get(pmid);
-
-    if (!pmcid) {
-      statuses.push({
-        pmid,
-        has_full_text: false,
-      });
-      continue;
-    }
-
-    try {
-      const oaXml = await client.oaFetch(pmcid);
-      const oaResult = parsePmcOaXml(oaXml, pmcid);
-      statuses.push({
-        pmid,
-        pmcid,
-        has_full_text: true,
-        ...(oaResult.license ? { license: oaResult.license } : {}),
-        is_open_access: oaResult.isOpenAccess,
-      });
-    } catch {
-      // PMC record exists but OA service failed — article is in PMC but
-      // may not be open access
-      statuses.push({
-        pmid,
-        pmcid,
-        has_full_text: true,
-        is_open_access: false,
-      });
+  // Step 2: Fetch PMC records in batches and read their access metadata.
+  // Batches run sequentially so large inputs respect NCBI rate limits.
+  const pmcids = [
+    ...new Set(params.pmids.map((pmid) => pmidToPmcid.get(pmid)).filter(isString)),
+  ];
+  const accessByPmcid = new Map<string, PmcAccessInfo>();
+  for (let i = 0; i < pmcids.length; i += EFETCH_BATCH_SIZE) {
+    const batch = pmcids.slice(i, i + EFETCH_BATCH_SIZE);
+    const xml = await client.efetch({
+      db: 'pmc',
+      id: batch.map((pmcid) => pmcid.replace(/^PMC/i, '')),
+      retmode: 'xml',
+    });
+    for (const info of parsePmcAccessXml(xml)) {
+      accessByPmcid.set(info.pmcid.toUpperCase(), info);
     }
   }
+
+  const statuses: CopyrightStatus[] = params.pmids.map((pmid) => {
+    const pmcid = pmidToPmcid.get(pmid);
+    if (!pmcid) {
+      return { pmid, has_full_text: false };
+    }
+
+    const info = accessByPmcid.get(pmcid.toUpperCase());
+    if (!info) {
+      // In PMC per the ID Converter, but EFetch returned no record for it.
+      return { pmid, pmcid, has_full_text: false };
+    }
+
+    return {
+      pmid,
+      pmcid,
+      has_full_text: info.hasFullText,
+      ...(info.license ? { license: info.license } : {}),
+      ...(info.copyrightStatement ? { copyright_statement: info.copyrightStatement } : {}),
+      is_open_access: info.isOpenAccess,
+    };
+  });
 
   return {
     statuses,
     count: statuses.length,
   };
+}
+
+function isString(value: string | undefined): value is string {
+  return typeof value === 'string' && value !== '';
 }

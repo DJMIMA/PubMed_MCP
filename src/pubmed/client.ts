@@ -15,7 +15,6 @@ import axios from 'axios';
 
 const NCBI_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
 const PMC_ID_CONVERTER_URL = 'https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/';
-const PMC_OA_URL = 'https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi';
 
 /**
  * Shared agent for every NCBI request.
@@ -281,21 +280,6 @@ export class NcbiClient {
       })
     );
     return sanitizeIdConvResponse(response.data as IdConvResponse);
-  }
-
-  /**
-   * PMC OA Service — retrieve license/copyright info for a PMC article.
-   * Returns raw XML text.
-   */
-  async oaFetch(pmcid: string): Promise<string> {
-    const response = await this.request('oaFetch', () =>
-      axios.get(PMC_OA_URL, {
-        httpsAgent: HTTPS_AGENT,
-        params: { id: pmcid },
-        responseType: 'text',
-      })
-    );
-    return response.data as string;
   }
 }
 

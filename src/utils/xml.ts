@@ -399,35 +399,54 @@ function extractPmcBackText(back: any): string {
   return parts.join('\n');
 }
 
-// ─── PMC OA XML parser ────────────────────────────────────────────────────────
+// ─── PMC JATS XML → access / license status ──────────────────────────────────
 
-export interface OaResult {
+export interface PmcAccessInfo {
   pmcid: string;
-  license?: string;
-  ftp?: string;
+  /** PMC's own flag (custom-meta "pmc-prop-open-access"). */
   isOpenAccess: boolean;
+  /** Same test get_full_text_article applies: EFetch returned body/back text. */
+  hasFullText: boolean;
+  /** Short license code from custom-meta "pmc-license-ref", e.g. "CC BY-NC-ND". */
+  license?: string;
+  copyrightStatement?: string;
 }
 
-export function parsePmcOaXml(xml: string, pmcid: string): OaResult {
+/**
+ * Read access and license status from efetch.fcgi (db=pmc) XML.
+ * Replaces the PMC OA Web Service (oa.fcgi), which NCBI retired on 2026-08-25.
+ */
+export function parsePmcAccessXml(xml: string): PmcAccessInfo[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const doc = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '_' }).parse(xml) as any;
-  const oa = doc?.OA;
+  const doc = pmcParser.parse(normalizePmcInlineXml(xml)) as any;
+  const articleSet = doc?.['pmc-articleset'] ?? doc;
+  const articles: unknown[] = asArray(articleSet?.article);
 
-  if (!oa || oa?.error) {
-    return { pmcid, isOpenAccess: false };
-  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return articles.map((article: any): PmcAccessInfo => {
+    const articleMeta = article?.front?.['article-meta'] ?? {};
+    const meta = new Map<string, string>();
+    for (const group of asArray(articleMeta?.['custom-meta-group'])) {
+      for (const entry of asArray((group as Record<string, unknown>)?.['custom-meta'])) {
+        const e = entry as Record<string, unknown>;
+        meta.set(extractText(e?.['meta-name']), extractText(e?.['meta-value']));
+      }
+    }
 
-  const record = oa?.records?.record;
-  const license = record?._license ?? undefined;
-  const link = Array.isArray(record?.link) ? record.link[0] : record?.link;
-  const ftp = record?.links?.link?._href ?? link?._href ?? undefined;
+    const { identifiers, full_text } = parsePmcArticle(article);
+    const license = meta.get('pmc-license-ref');
+    const copyrightStatement = cleanPmcText(
+      extractText(articleMeta?.permissions?.['copyright-statement'])
+    );
 
-  return {
-    pmcid,
-    license: license ? String(license) : undefined,
-    ftp: ftp ? String(ftp) : undefined,
-    isOpenAccess: !!license,
-  };
+    return {
+      pmcid: identifiers.pmcid,
+      isOpenAccess: meta.get('pmc-prop-open-access') === 'yes',
+      hasFullText: full_text.trim() !== '',
+      ...(license ? { license } : {}),
+      ...(copyrightStatement ? { copyrightStatement } : {}),
+    };
+  });
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
