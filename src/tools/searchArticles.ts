@@ -77,14 +77,14 @@ export const searchArticlesSchema = {
     .optional()
     .describe(
       'Start of date range filter (YYYY/MM/DD, YYYY/MM, or YYYY). ' +
-        'Applied to the date type specified by datetype.'
+        'Applied to the date type specified by datetype. May be given without date_to.'
     ),
   date_to: z
     .string()
     .optional()
     .describe(
       'End of date range filter (YYYY/MM/DD, YYYY/MM, or YYYY). ' +
-        'Applied to the date type specified by datetype.'
+        'Applied to the date type specified by datetype. May be given without date_from.'
     ),
   datetype: z
     .enum(['pdat', 'edat', 'mdat'])
@@ -122,8 +122,7 @@ export async function searchArticles(
     sort: params.sort ? SORT_MAP[params.sort] : undefined,
     ...(params.field ? { field: params.field } : {}),
     datetype: params.datetype ?? 'pdat',
-    mindate: params.date_from,
-    maxdate: params.date_to,
+    ...dateRange(params.date_from, params.date_to),
   });
 
   const total_count = parseInt(result.count, 10);
@@ -147,4 +146,17 @@ export async function searchArticles(
       fields_not_found: result.errorlist?.fieldsnotfound ?? [],
     },
   };
+}
+
+// NCBI ESearch silently ignores mindate or maxdate unless both are sent, so a
+// one-sided range is completed with an open bound on the other side.
+const OPEN_MIN_DATE = '1000';
+const OPEN_MAX_DATE = '3000';
+
+function dateRange(
+  from: string | undefined,
+  to: string | undefined
+): { mindate?: string; maxdate?: string } {
+  if (!from && !to) return {};
+  return { mindate: from || OPEN_MIN_DATE, maxdate: to || OPEN_MAX_DATE };
 }

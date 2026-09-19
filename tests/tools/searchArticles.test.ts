@@ -160,6 +160,26 @@ describe('searchArticles', () => {
     );
   });
 
+  it('completes a one-sided date range with an open bound (NCBI ignores it otherwise)', async () => {
+    mockEsearch.mockResolvedValue({
+      count: '0',
+      retmax: '20',
+      retstart: '0',
+      idlist: [],
+      translationset: [],
+      querytranslation: '',
+    });
+
+    await searchArticles({ query: 'test', date_to: '2024' }, mockClient);
+    await searchArticles({ query: 'test', date_from: '2020/06' }, mockClient);
+    await searchArticles({ query: 'test' }, mockClient);
+
+    expect(mockEsearch.mock.calls[0][0]).toMatchObject({ mindate: '1000', maxdate: '2024' });
+    expect(mockEsearch.mock.calls[1][0]).toMatchObject({ mindate: '2020/06', maxdate: '3000' });
+    expect(mockEsearch.mock.calls[2][0]).not.toHaveProperty('mindate');
+    expect(mockEsearch.mock.calls[2][0]).not.toHaveProperty('maxdate');
+  });
+
   it('passes a supported field only when specified', async () => {
     mockEsearch.mockResolvedValue({
       count: '5',
