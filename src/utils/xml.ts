@@ -72,6 +72,30 @@ const PMC_INLINE_TAGS_TO_UNWRAP = [
   'named-content',
 ];
 
+// EFetch XML can carry characters as numeric character references (&#x2265;,
+// &#233;); db=pubmed writes every non-ASCII character that way. They are decoded
+// before parsing rather than through fast-xml-parser's htmlEntities option,
+// which uses String.fromCharCode (garbling code points above U+FFFF) and decodes
+// &#38; before &amp;, turning "&#38;amp;" into "&" instead of "&amp;". CDATA
+// sections and comments are matched only so they can be skipped: references
+// inside them are literal text.
+const CHARACTER_REFERENCE_PATTERN =
+  /<!\[CDATA\[[\s\S]*?\]\]>|<!--[\s\S]*?-->|&#x([0-9a-fA-F]+);|&#([0-9]+);/g;
+
+// Decoded characters that must stay escaped for the XML to remain well-formed.
+const XML_SPECIAL_CHARACTER_ENTITIES = new Map([
+  ['&', '&amp;'],
+  ['<', '&lt;'],
+  ['>', '&gt;'],
+  ['"', '&quot;'],
+  ["'", '&apos;'],
+]);
+
+// Unicode space separators other than U+0020, such as NBSP (U+00A0), thin space
+// (U+2009) and narrow NBSP (U+202F). trimValues and extractText already treat
+// them as whitespace; as plain spaces they are also collapsed by cleanPmcText.
+const UNICODE_SPACE_PATTERN = /[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]/g;
+
 // ─── PubMed efetch XML parser ─────────────────────────────────────────────────
 
 const pubmedParser = new XMLParser({
@@ -103,7 +127,7 @@ const pmcParser = new XMLParser({
  */
 export function parsePubmedEfetchXml(xml: string): ArticleMetadata[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const doc = pubmedParser.parse(normalizePubmedInlineXml(xml)) as any;
+  const doc = pubmedParser.parse(normalizePubmedXml(xml)) as any;
   const articleSet = doc?.PubmedArticleSet ?? doc;
   const articles: unknown[] = asArray(articleSet?.PubmedArticle);
 
@@ -247,7 +271,7 @@ function parseAbstract(abstractNode: any): string {
  */
 export function parsePmcEfetchXml(xml: string): FullTextArticle[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const doc = pmcParser.parse(normalizePmcInlineXml(xml)) as any;
+  const doc = pmcParser.parse(normalizePmcXml(xml)) as any;
   const articleSet = doc?.['pmc-articleset'] ?? doc;
   const articles: unknown[] = asArray(articleSet?.article);
 
@@ -418,7 +442,7 @@ export interface PmcAccessInfo {
  */
 export function parsePmcAccessXml(xml: string): PmcAccessInfo[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const doc = pmcParser.parse(normalizePmcInlineXml(xml)) as any;
+  const doc = pmcParser.parse(normalizePmcXml(xml)) as any;
   const articleSet = doc?.['pmc-articleset'] ?? doc;
   const articles: unknown[] = asArray(articleSet?.article);
 
@@ -492,12 +516,33 @@ export function extractText(node: unknown): string {
   return '';
 }
 
-function normalizePubmedInlineXml(xml: string): string {
-  return unwrapInlineTags(xml, PUBMED_INLINE_TAGS_TO_UNWRAP);
+function normalizePubmedXml(xml: string): string {
+  return normalizeCharacters(unwrapInlineTags(xml, PUBMED_INLINE_TAGS_TO_UNWRAP));
 }
 
-function normalizePmcInlineXml(xml: string): string {
-  return unwrapInlineTags(xml, PMC_INLINE_TAGS_TO_UNWRAP);
+function normalizePmcXml(xml: string): string {
+  return normalizeCharacters(unwrapInlineTags(xml, PMC_INLINE_TAGS_TO_UNWRAP));
+}
+
+/**
+ * Decode numeric character references with String.fromCodePoint and replace
+ * Unicode spaces with ASCII spaces. References to XML special characters become
+ * the named entities that fast-xml-parser decodes, so nothing is decoded twice.
+ */
+function normalizeCharacters(xml: string): string {
+  return xml
+    .replace(
+      CHARACTER_REFERENCE_PATTERN,
+      (match: string, hex: string | undefined, dec: string | undefined) => {
+        const digits = hex ?? dec;
+        if (digits === undefined) return match; // CDATA section or comment
+        const codePoint = Number.parseInt(digits, hex === undefined ? 10 : 16);
+        if (codePoint > 0x10ffff) return match; // not a Unicode code point
+        const char = String.fromCodePoint(codePoint);
+        return XML_SPECIAL_CHARACTER_ENTITIES.get(char) ?? char;
+      }
+    )
+    .replace(UNICODE_SPACE_PATTERN, ' ');
 }
 
 function unwrapInlineTags(xml: string, tags: readonly string[]): string {

@@ -10,6 +10,11 @@ import {
   parsePmcAccessXml,
 } from '../../src/utils/xml.js';
 
+// Code points above U+FFFF. String.fromCharCode, which fast-xml-parser's
+// htmlEntities option uses, would turn each into an unrelated BMP character.
+const MATH_ITALIC_ALPHA = String.fromCodePoint(0x1d6fc);
+const MATH_ITALIC_BETA = String.fromCodePoint(0x1d6fd);
+
 describe('extractText', () => {
   it('returns a string as-is', () => {
     expect(extractText('hello world')).toBe('hello world');
@@ -182,6 +187,72 @@ describe('parsePubmedEfetchXml', () => {
     const articles = parsePubmedEfetchXml(xml);
     expect(articles[0].abstract).toContain('BACKGROUND: Background text here.');
     expect(articles[0].abstract).toContain('METHODS: Methods text here.');
+  });
+
+  it('decodes decimal, hexadecimal, and non-BMP numeric character references', () => {
+    const xml = MINIMAL_XML
+      .replace(
+        '<ArticleTitle>A test article title</ArticleTitle>',
+        '<ArticleTitle>Outcomes in patients aged &#x2265;70&#xa0;years with <i>TP53</i>-mutated MDS</ArticleTitle>'
+      )
+      .replace(
+        '<AbstractText>This is the abstract.</AbstractText>',
+        '<AbstractText>Hemoglobin was &#8805;10&#x2009;g/dL; Cox &#x1d6fd; was 0.42 and Cronbach &#120572; was 0.91.</AbstractText>'
+      )
+      .replace('<LastName>Doe</LastName>', '<LastName>M&#xfc;ller</LastName>')
+      .replace('<ForeName>Jane</ForeName>', '<ForeName>Jos&#233;</ForeName>')
+      .replace(
+        '<Initials>J</Initials>',
+        '<Initials>J</Initials><AffiliationInfo><Affiliation>H&#xf4;pital Saint-Louis, Universit&#xe9; Paris Cit&#xe9;, Paris, France.</Affiliation></AffiliationInfo>'
+      );
+
+    const [article] = parsePubmedEfetchXml(xml);
+
+    expect(article.title).toBe('Outcomes in patients aged ≥70 years with TP53-mutated MDS');
+    expect(article.abstract).toBe(
+      `Hemoglobin was ≥10 g/dL; Cox ${MATH_ITALIC_BETA} was 0.42 and Cronbach ${MATH_ITALIC_ALPHA} was 0.91.`
+    );
+    expect(article.authors[0]).toEqual({
+      last_name: 'Müller',
+      fore_name: 'José',
+      initials: 'J',
+      affiliations: ['Hôpital Saint-Louis, Université Paris Cité, Paris, France.'],
+    });
+  });
+
+  it('decodes XML entities once and keeps escaped references literal', () => {
+    const xml = MINIMAL_XML
+      .replace(
+        '<ArticleTitle>A test article title</ArticleTitle>',
+        '<ArticleTitle>Clonal hematopoiesis &amp; MDS: VAF &lt;2% vs &gt;10%</ArticleTitle>'
+      )
+      .replace(
+        '<AbstractText>This is the abstract.</AbstractText>',
+        '<AbstractText Label="PATIENTS &amp; METHODS">Escaped text stays escaped: &amp;amp;, &amp;lt;i&amp;gt;, &amp;#x2265;, &#38;amp; and &#38;#x2265;.</AbstractText>'
+      )
+      .replace(
+        '<ArticleId IdType="doi">10.1234/test.99999</ArticleId>',
+        '<ArticleId IdType="doi">10.1002/(SICI)1097-0142(19990101)85:1&lt;1::AID-CNCR1&gt;3.0.CO;2-Q</ArticleId>'
+      );
+
+    const [article] = parsePubmedEfetchXml(xml);
+
+    expect(article.title).toBe('Clonal hematopoiesis & MDS: VAF <2% vs >10%');
+    expect(article.abstract).toBe(
+      'PATIENTS & METHODS: Escaped text stays escaped: &amp;, &lt;i&gt;, &#x2265;, &amp; and &#x2265;.'
+    );
+    expect(article.doi).toBe('10.1002/(SICI)1097-0142(19990101)85:1<1::AID-CNCR1>3.0.CO;2-Q');
+  });
+
+  it('turns NBSP and thin spaces into plain spaces and trims them at the edges', () => {
+    const xml = MINIMAL_XML.replace(
+      '<Initials>J</Initials>',
+      '<Initials>J</Initials><AffiliationInfo><Affiliation>&#xa0;Department of Hematology,&#x2009;Kyoto&#x202f;University&#xa0;</Affiliation></AffiliationInfo>'
+    );
+
+    const [article] = parsePubmedEfetchXml(xml);
+
+    expect(article.authors[0].affiliations).toEqual(['Department of Hematology, Kyoto University']);
   });
 });
 
@@ -397,6 +468,63 @@ describe('parsePmcEfetchXml', () => {
     expect(articles[0].full_text).toContain('References');
     expect(articles[0].full_text).toContain('10.1000/nested');
   });
+
+  it('decodes character references and XML entities once, like literal UTF-8 text', () => {
+    // PMC EFetch mostly sends literal UTF-8 characters; they must come out the
+    // same as the equivalent references.
+    const nbsp = String.fromCodePoint(0xa0);
+    const thinSpace = String.fromCodePoint(0x2009);
+    const xml = `<?xml version="1.0"?>
+<pmc-articleset>
+  <article>
+    <front>
+      <article-meta>
+        <article-id pub-id-type="pmcid">12345</article-id>
+        <title-group>
+          <article-title>Venetoclax &amp; azacitidine in patients aged &#x2265;70&#xa0;years with <italic>TP53</italic>-mutated AML</article-title>
+        </title-group>
+        <abstract>
+          <p>Median age was 74&#x2009;years; Cox &#x1d6fd; was 0.42 (P &#x3c; 0.001) and Cronbach &#120572; was 0.91.</p>
+        </abstract>
+      </article-meta>
+    </front>
+    <body>
+      <sec>
+        <title>Methods</title>
+        <p>Samples were analyzed at H&#xf4;pital Saint-Louis and Universit&#233; Paris Cit&#xe9;; hemoglobin was &lt;10 g/dL.</p>
+        <p>Patients received 400${thinSpace}mg${nbsp}daily.</p>
+        <p>Escaped text stays escaped: &amp;lt;, &amp;#x2265;, &#38;amp; and &#38;#x2265;.</p>
+      </sec>
+    </body>
+  </article>
+</pmc-articleset>`;
+
+    const [article] = parsePmcEfetchXml(xml);
+
+    expect(article.title).toBe(
+      'Venetoclax & azacitidine in patients aged ≥70 years with TP53-mutated AML'
+    );
+    expect(article.abstract).toBe(
+      `Median age was 74 years; Cox ${MATH_ITALIC_BETA} was 0.42 (P < 0.001) and Cronbach ${MATH_ITALIC_ALPHA} was 0.91.`
+    );
+    expect(article.full_text).toBe(
+      [
+        'Methods',
+        'Samples were analyzed at Hôpital Saint-Louis and Université Paris Cité; hemoglobin was <10 g/dL.',
+        'Patients received 400 mg daily.',
+        'Escaped text stays escaped: &lt;, &#x2265;, &amp; and &#x2265;.',
+      ].join('\n')
+    );
+  });
+
+  it('leaves character references inside CDATA sections undecoded', () => {
+    const xml = `<pmc-articleset><article>
+      <front><article-meta><article-id pub-id-type="pmcid">12345</article-id></article-meta></front>
+      <body><sec><p><![CDATA[Written as &#x2265; in the source]]></p></sec></body>
+    </article></pmc-articleset>`;
+
+    expect(parsePmcEfetchXml(xml)[0].full_text).toBe('Written as &#x2265; in the source');
+  });
 });
 
 describe('parsePmcAccessXml', () => {
@@ -441,6 +569,32 @@ describe('parsePmcAccessXml', () => {
 
     expect(parsePmcAccessXml(xml)).toEqual([
       { pmcid: 'PMC13580969', isOpenAccess: false, hasFullText: false },
+    ]);
+  });
+
+  it('decodes character references in license and copyright strings', () => {
+    const xml = `<pmc-articleset><article>
+      <front><article-meta>
+        <article-id pub-id-type="pmcid">PMC11111111</article-id>
+        <permissions>
+          <copyright-statement>&#xa9; 2025 Fran&#231;ois M&#xfc;ller &amp; Siobh&#xe1;n O&#x27;Neil</copyright-statement>
+        </permissions>
+        <custom-meta-group>
+          <custom-meta><meta-name>pmc-prop-open-access</meta-name><meta-value>yes</meta-value></custom-meta>
+          <custom-meta><meta-name>pmc-license-ref</meta-name><meta-value>CC&#xa0;BY-NC-ND</meta-value></custom-meta>
+        </custom-meta-group>
+      </article-meta></front>
+      <body><sec><p>Results were significant.</p></sec></body>
+    </article></pmc-articleset>`;
+
+    expect(parsePmcAccessXml(xml)).toEqual([
+      {
+        pmcid: 'PMC11111111',
+        isOpenAccess: true,
+        hasFullText: true,
+        license: 'CC BY-NC-ND',
+        copyrightStatement: "© 2025 François Müller & Siobhán O'Neil",
+      },
     ]);
   });
 });
