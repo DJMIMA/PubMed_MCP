@@ -185,6 +185,8 @@ codex mcp add pubmed-local --env NCBI_API_KEY=your_api_key_here -- node /absolut
 ### Anthropic API（プログラムからの利用）
 
 ```python
+import os
+
 import anthropic
 
 client = anthropic.Anthropic()
@@ -197,15 +199,18 @@ response = client.beta.messages.create(
     }],
     mcp_servers=[{
         "type": "url",
-        "url": "https://<your-cloud-run-url>/mcp",
+        "url": "https://pubmed-mcp-PROJECT_NUMBER.asia-northeast1.run.app/mcp",
         "name": "pubmed",
+        # /mcp は OAuth で保護されているため、アクセストークンが必要
+        "authorization_token": os.environ["PUBMED_MCP_TOKEN"],
     }],
     tools=[{"type": "mcp_toolset", "mcp_server_name": "pubmed"}],
     betas=["mcp-client-2025-11-20"]
 )
 ```
 
-Cloud Run へのデプロイ方法は後述の「[Google Cloud Run へのデプロイ](#google-cloud-run-へのデプロイ)」を参照してください。
+Anthropic API の MCP コネクタは HTTP で公開されたリモートサーバーにしか接続できないため、先に Cloud Run へデプロイしておく必要があります。
+デプロイ方法は後述の「[Google Cloud Run へのデプロイ](#google-cloud-run-へのデプロイ)」、アクセストークンの取得方法は「[クライアント別の接続設定](#クライアント別の接続設定)」を参照してください。
 
 ---
 
@@ -219,11 +224,21 @@ cp .env.example .env
 # stdio モードで起動（デフォルト）
 npm run dev
 
-# HTTP モードで起動（PORT を設定するだけで有効になる）
+# HTTP モードで起動（PORT を設定すると有効になる。OAuth の環境変数も必須）
 PORT=8080 npm run dev
-# → http://localhost:8080/mcp   MCP エンドポイント
+# → http://localhost:8080/mcp   MCP エンドポイント（Bearer トークン必須）
 # → http://localhost:8080/health ヘルスチェック
 ```
+
+HTTP モードは起動時に `OAUTH_ISSUER`・`OAUTH_JWKS_URL`・`MCP_RESOURCE_URL` を読み込み、1 つでも未設定だと次のエラーで終了します。
+
+```
+Fatal error: Error: Missing required environment variable: OAUTH_ISSUER
+```
+
+`.env` にこれらの値を設定してから起動してください（各値の意味は「[環境変数](#環境変数)」を参照）。
+`/health` や 401 応答を確かめるだけなら URL 形式の仮の値でも起動できますが、`/mcp` を実際に呼び出すには
+`MCP_RESOURCE_URL` を `aud` として発行されたアクセストークンが必要です。認証なしでツールを試す場合は stdio モードを使ってください。
 
 ---
 
@@ -232,21 +247,38 @@ PORT=8080 npm run dev
 このサーバーは Docker コンテナとして Google Cloud Run にデプロイできます。
 `PORT` 環境変数が設定されると自動的に HTTP モードで起動し、Streamable HTTP トランスポートで MCP クライアントと通信します。
 
-Cloud Run は `--allow-unauthenticated` でデプロイし、インターネットから直接アクセス可能にします。
-Claude Desktop・Claude.ai（Web）・Claude Android・Anthropic API すべてから認証なしで接続できます。
+HTTP モードの `/mcp` は **OAuth 2.0 で保護** されています。サーバーは OAuth のリソースサーバーとして動作し、
+リクエストごとに Bearer トークン（JWT）の署名・発行者（`iss`）・対象（`aud`）・有効期限を、認可サーバーの公開鍵（JWKS）で検証します。
+ログイン画面やトークンの発行は外部の認可サーバーが担当します（ここでは WorkOS AuthKit を使います）。
+
+Cloud Run 自体は `--allow-unauthenticated` で公開します。Cloud Run の IAM 認証（IAP を含む）は claude.ai からの接続と両立しないため、
+アクセス制御は Cloud Run ではなくアプリ側の OAuth で行います。
+
+| パス | 認証 | 内容 |
+|------|------|------|
+| `/mcp` | Bearer トークン必須 | MCP エンドポイント |
+| `/.well-known/oauth-protected-resource` | 不要 | 認可サーバーの場所を示すメタデータ（RFC 9728） |
+| `/health` | 不要 | ヘルスチェック |
 
 ```
-Claude Desktop / Claude.ai Web / Claude Android / Anthropic API
-        ↓
+Claude（Web / Desktop / モバイル）・Claude Code・Anthropic API
+        │  Authorization: Bearer <WorkOS AuthKit が発行したアクセストークン>
+        ▼
   Cloud Run（--allow-unauthenticated）
-        ↓
+        │  /mcp で JWT を検証し、ALLOWED_SUBJECTS で利用者を限定
+        ▼
   MCP ハンドラ
 ```
+
+Claude の各アプリと Claude Code は、トークンなしのリクエストに返る 401 応答（`WWW-Authenticate` ヘッダー）から
+メタデータをたどって認可サーバーを見つけ、ブラウザでのログインを経てトークンを取得します。
+Anthropic API から使う場合は、呼び出し側でトークンを用意して渡します。
 
 ### 前提条件
 
 - Google Cloud プロジェクト（課金が有効なもの）
 - [gcloud CLI](https://cloud.google.com/sdk/docs/install) インストール済み・ログイン済み
+- [WorkOS](https://workos.com/) アカウント（AuthKit を OAuth 認可サーバーとして使用）
 
 ### ステップ 1 — プロジェクトと API の準備
 
@@ -309,9 +341,44 @@ docker build -t asia-northeast1-docker.pkg.dev/MY_PROJECT_ID/pubmed-mcp/server:l
 docker push asia-northeast1-docker.pkg.dev/MY_PROJECT_ID/pubmed-mcp/server:latest
 ```
 
-### ステップ 5 — Cloud Run にデプロイ
+### ステップ 5 — OAuth 認可サーバー（WorkOS AuthKit）を設定
+
+まず MCP エンドポイントの公開 URL を決めます。Cloud Run のサービスには
+`https://サービス名-プロジェクト番号.リージョン.run.app` 形式の URL が割り当てられるため、デプロイ前に確定できます。
 
 ```bash
+PROJECT_NUMBER=$(gcloud projects describe MY_PROJECT_ID --format='value(projectNumber)')
+MCP_RESOURCE_URL="https://pubmed-mcp-${PROJECT_NUMBER}.asia-northeast1.run.app/mcp"
+echo "$MCP_RESOURCE_URL"
+```
+
+この URL が `MCP_RESOURCE_URL` です。WorkOS の Resource Indicator や各クライアントに登録する URL とは**完全に同じ文字列**にしてください
+（クライアントは接続先の URL とメタデータの `resource` が一致するかを確認し、サーバーはトークンの `aud` をこの値と照合します）。
+Cloud Run には `https://pubmed-mcp-xxxx-an.a.run.app` 形式の URL も割り当てられ、どちらでもアクセスできますが、OAuth で使う URL はどちらか一方に統一します。
+
+次に WorkOS ダッシュボードで AuthKit を設定します。
+
+1. **Connect → Configuration** で **Dynamic Client Registration** を有効にする（claude.ai などの MCP クライアントが、自分自身を OAuth クライアントとして登録できるようにするため）
+2. `MCP_RESOURCE_URL` を **Resource Indicator** として登録する（アクセストークンの `aud` がこの URL になる）
+3. AuthKit ドメインの認可サーバーメタデータを開き、`issuer` と `jwks_uri` の値を控える
+
+   ```bash
+   curl https://YOUR_AUTHKIT_DOMAIN/.well-known/oauth-authorization-server
+   # → {"issuer":"https://YOUR_AUTHKIT_DOMAIN", ..., "jwks_uri":"https://YOUR_AUTHKIT_DOMAIN/oauth2/jwks", ...}
+   ```
+
+WorkOS の Staging 環境と Production 環境は、設定も AuthKit ドメインも別々です。環境を切り替えるときは上の設定をやり直し、
+`OAUTH_ISSUER`・`OAUTH_JWKS_URL` も差し替えてください。
+
+### ステップ 6 — Cloud Run にデプロイ
+
+ステップ 5 で控えた値を使ってデプロイします。`ALLOWED_SUBJECTS` には最初は仮の値（ここでは `placeholder`）を入れておきます（理由はステップ 8 を参照）。
+
+```bash
+# ステップ 5 で控えた issuer と jwks_uri の値に置き換える
+OAUTH_ISSUER="https://YOUR_AUTHKIT_DOMAIN"
+OAUTH_JWKS_URL="https://YOUR_AUTHKIT_DOMAIN/oauth2/jwks"
+
 gcloud run deploy pubmed-mcp \
   --image asia-northeast1-docker.pkg.dev/MY_PROJECT_ID/pubmed-mcp/server:latest \
   --region asia-northeast1 \
@@ -320,26 +387,44 @@ gcloud run deploy pubmed-mcp \
   --cpu 1 \
   --timeout 300 \
   --allow-unauthenticated \
-  --set-secrets NCBI_API_KEY=ncbi-api-key:latest
+  --set-secrets NCBI_API_KEY=ncbi-api-key:latest \
+  --set-env-vars "OAUTH_ISSUER=${OAUTH_ISSUER},OAUTH_JWKS_URL=${OAUTH_JWKS_URL},MCP_RESOURCE_URL=${MCP_RESOURCE_URL},ALLOWED_SUBJECTS=placeholder"
 ```
 
-デプロイ後に表示される URL（例: `https://pubmed-mcp-xxxx-an.a.run.app`）をメモしてください。
+| 変数 | 設定する値 |
+|------|-----------|
+| `OAUTH_ISSUER` | 認可サーバーメタデータの `issuer`。トークンの `iss` と完全一致で照合されるので、末尾の `/` の有無も含めてそのままコピーする |
+| `OAUTH_JWKS_URL` | 同じメタデータの `jwks_uri`。トークンの署名検証に使う公開鍵の URL |
+| `MCP_RESOURCE_URL` | ステップ 5 で決めた MCP エンドポイントの URL。トークンの `aud` と照合し、`/.well-known/oauth-protected-resource` の `resource` としても公開される |
+| `ALLOWED_SUBJECTS` | 接続を許可するユーザー ID（トークンの `sub`）のカンマ区切りリスト。空にすると、AuthKit で有効なトークンを取得できるユーザー全員が接続できる |
 
-### ステップ 6 — 動作確認
+`OAUTH_ISSUER`・`OAUTH_JWKS_URL`・`MCP_RESOURCE_URL` のどれかが欠けていると、サーバーは起動時に
+`Missing required environment variable: ...` で終了し、デプロイは失敗します。失敗した場合は Cloud Run のログでこのメッセージを確認してください
+（Cloud Console で設定した場合は、変数名の前後に空白が入っていないかも確認してください）。
+
+> **`--set-env-vars` と `--update-env-vars` の違い**: `--set-env-vars` は既存の環境変数をすべて削除してから、指定した値を設定します（指定しなかった変数は消えます）。
+> デプロイ後に一部の値だけを追加・変更するときは、既存の値とマージされる `--update-env-vars` を使ってください（`gcloud run services update` でも使えます）。
+
+### ステップ 7 — 動作確認
+
+`/health` と `/.well-known/oauth-protected-resource` は認証なしで応答します。`/mcp` はトークンなしでは **401 が返れば正常** です。
 
 **Linux / macOS (bash)**
 
 ```bash
-CLOUD_RUN_URL=$(gcloud run services describe pubmed-mcp \
-  --region asia-northeast1 \
-  --format='value(status.url)')
+PROJECT_NUMBER=$(gcloud projects describe MY_PROJECT_ID --format='value(projectNumber)')
+CLOUD_RUN_URL="https://pubmed-mcp-${PROJECT_NUMBER}.asia-northeast1.run.app"
 
 # ヘルスチェック
 curl "$CLOUD_RUN_URL/health"
 # → ok
 
-# MCP エンドポイント（ヒアドキュメントでクォート問題を回避）
-curl "$CLOUD_RUN_URL/mcp" \
+# Protected Resource Metadata（resource が MCP_RESOURCE_URL、authorization_servers が OAUTH_ISSUER になっていることを確認）
+curl "$CLOUD_RUN_URL/.well-known/oauth-protected-resource"
+# → {"resource":"https://pubmed-mcp-PROJECT_NUMBER.asia-northeast1.run.app/mcp","authorization_servers":["https://YOUR_AUTHKIT_DOMAIN"],"bearer_methods_supported":["header"]}
+
+# MCP エンドポイント（トークンなしなので 401。-i でヘッダーも表示。ヒアドキュメントでクォート問題を回避）
+curl -i "$CLOUD_RUN_URL/mcp" \
   -X POST \
   -H "Content-Type: application/json" \
   -d @- <<'EOF'
@@ -347,69 +432,126 @@ curl "$CLOUD_RUN_URL/mcp" \
 EOF
 ```
 
+`/mcp` の応答は次のようになります（抜粋。HTTP のバージョンやヘッダー名の大文字・小文字は環境によって異なります）。
+
+```
+HTTP/2 401
+www-authenticate: Bearer resource_metadata="https://pubmed-mcp-PROJECT_NUMBER.asia-northeast1.run.app/.well-known/oauth-protected-resource", error="missing_token"
+content-type: application/json; charset=utf-8
+
+{"error":"missing_token"}
+```
+
+MCP クライアントは `WWW-Authenticate` ヘッダーの `resource_metadata` をたどって認可サーバーを見つけます。
+トークンの検証に失敗した場合は `error="invalid_token"` の 401、トークンは有効でも `sub` が `ALLOWED_SUBJECTS` にない場合は 403（`{"error":"forbidden"}`）が返ります。
+
 **Windows（コマンドプロンプト）**
 
 ```cmd
-:: %CLOUD_RUN_URL% に URL を設定してから実行
-set CLOUD_RUN_URL=https://pubmed-mcp-xxxx-an.a.run.app
+:: %CLOUD_RUN_URL% に URL を設定してから実行（PROJECT_NUMBER は自分のプロジェクト番号に置き換える）
+set CLOUD_RUN_URL=https://pubmed-mcp-PROJECT_NUMBER.asia-northeast1.run.app
 
 curl "%CLOUD_RUN_URL%/health"
 
-curl "%CLOUD_RUN_URL%/mcp" -X POST -H "Content-Type: application/json" -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"0.0.1\"}}}"
+curl "%CLOUD_RUN_URL%/.well-known/oauth-protected-resource"
+
+curl -i "%CLOUD_RUN_URL%/mcp" -X POST -H "Content-Type: application/json" -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"0.0.1\"}}}"
 ```
 
 **Windows（PowerShell）**
 
 ```powershell
-$CLOUD_RUN_URL = "https://pubmed-mcp-xxxx-an.a.run.app"
+$CLOUD_RUN_URL = "https://pubmed-mcp-PROJECT_NUMBER.asia-northeast1.run.app"
 
 curl.exe "$CLOUD_RUN_URL/health"
 
-curl.exe "$CLOUD_RUN_URL/mcp" -X POST -H "Content-Type: application/json" `
+curl.exe "$CLOUD_RUN_URL/.well-known/oauth-protected-resource"
+
+curl.exe -i "$CLOUD_RUN_URL/mcp" -X POST -H "Content-Type: application/json" `
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.0.1"}}}'
 ```
+
+### ステップ 8 — 自分のユーザー ID を ALLOWED_SUBJECTS に登録
+
+Dynamic Client Registration では誰でも OAuth クライアントを登録できるため、`ALLOWED_SUBJECTS` で接続できるユーザーを限定します
+（空のままだと AuthKit にログインできるユーザー全員が `/mcp` を使えます。AuthKit でサインアップを許可している場合は第三者も含まれます）。
+設定する値はアクセストークンの `sub`（WorkOS のユーザー ID。`user_` で始まる値）です。
+
+`ALLOWED_SUBJECTS` が空のときは `sub` がログに記録されません。そのため、仮の値を入れた状態で一度接続し、拒否されたときのログから確認します。
+
+1. 後述の「[クライアント別の接続設定](#クライアント別の接続設定)」の手順で claude.ai などから接続し、WorkOS AuthKit でログインします。
+   `sub` が `ALLOWED_SUBJECTS` に含まれていないため接続は 403 で失敗し、サーバーのログに `[auth] forbidden subject: ...` が記録されます。
+2. ログから自分の `sub` を確認します（WorkOS ダッシュボードの **Users** で確認できるユーザー ID と同じ値です）。
+
+   ```bash
+   gcloud run services logs read pubmed-mcp \
+     --region asia-northeast1 \
+     --log-filter='textPayload:"forbidden subject"' \
+     --limit 5
+   # → ... [auth] forbidden subject: user_01XXXXXXXXXXXXXXXXXXXXXXXX
+   ```
+
+3. その値を設定します。`--update-env-vars` なので、ほかの環境変数はそのまま残ります。
+
+   ```bash
+   gcloud run services update pubmed-mcp \
+     --region asia-northeast1 \
+     --update-env-vars ALLOWED_SUBJECTS=user_01XXXXXXXXXXXXXXXXXXXXXXXX
+   ```
+
+   複数のユーザーを許可する場合は、値にカンマが含まれるため `^@^` で区切り文字を変えて指定します
+   （例: `--update-env-vars '^@^ALLOWED_SUBJECTS=user_01AAAA,user_01BBBB'`。Windows の cmd / PowerShell では `^` を `^^^^` と書きます。詳しくは `gcloud topic escaping` を参照）。
+4. クライアントから接続し直します。
 
 ---
 
 ### クライアント別の接続設定
 
-デプロイ後、各クライアントに Cloud Run URL を設定します。
+デプロイ後、各クライアントに MCP エンドポイントの URL を登録します。URL は `MCP_RESOURCE_URL` と**完全に同じ文字列**
+（例: `https://pubmed-mcp-PROJECT_NUMBER.asia-northeast1.run.app/mcp`）にしてください。
+初回接続時に WorkOS AuthKit のログイン画面が開きます。ログインしたアカウントの `sub` が `ALLOWED_SUBJECTS` に含まれていれば接続できます
+（自分の `sub` を登録する手順はステップ 8 を参照）。
 
-**Claude Desktop (`claude_desktop_config.json`)**
+**Claude（Web 版・Claude Desktop）— カスタムコネクタ**
 
-```json
-{
-  "mcpServers": {
-    "pubmed-remote": {
-      "type": "streamable-http",
-      "url": "https://pubmed-mcp-xxxx-an.a.run.app/mcp"
-    }
-  }
-}
-```
+リモートサーバーは「カスタムコネクタ」として追加します（[Claude ヘルプセンター](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp)）。
+カスタムコネクタは Free プランでも 1 つまで利用できます。
+
+- Pro / Max プラン
+  1. [claude.ai](https://claude.ai) または Claude Desktop で **Customize > Connectors** を開く
+  2. **+** → **Add custom connector** をクリック
+  3. URL（`MCP_RESOURCE_URL`）を入力して **Add** をクリック
+  4. 追加したコネクタの **Connect** から認証する（WorkOS AuthKit のログイン画面が開く）
+- Team / Enterprise プラン
+  1. オーナーが **Organization settings > Connectors** を開き、**Add** → **Custom** にカーソルを合わせて **Web** を選ぶ
+  2. URL（`MCP_RESOURCE_URL`）を入力して **Add** をクリック
+  3. 各メンバーが **Customize > Connectors** でこのコネクタを探し、**Connect** から認証する
+
+**Advanced settings** の OAuth Client ID / OAuth Client Secret は空欄のままで構いません（Dynamic Client Registration でクライアントが自動登録されます）。
+チャットで使うときは、入力欄左下の **+** → **Connectors** から会話ごとに有効にします。
+
+Claude Desktop の `claude_desktop_config.json` はローカル（stdio）サーバー用の設定で、`"type"` や `"url"` を書いてもリモートサーバーには接続されません。
+Desktop でもリモートサーバーは上記のカスタムコネクタとして追加してください（Web 版で追加したコネクタは Desktop でもそのまま使えます）。
+
+**Claude モバイルアプリ（Android / iOS）**
+
+Web 版または Claude Desktop で追加したカスタムコネクタは、同じアカウントのモバイルアプリでもそのまま使えます。
+モバイルアプリからのコネクタ追加はベータ機能のため、追加は Web 版か Desktop で行ってください。
 
 **Claude Code**
 
 ```bash
-claude mcp add --transport http --scope user pubmed-remote https://pubmed-mcp-xxxx-an.a.run.app/mcp
+claude mcp add --transport http --scope user pubmed-remote https://pubmed-mcp-PROJECT_NUMBER.asia-northeast1.run.app/mcp
 ```
 
 Claude Code は `~/.claude/settings.json` の `mcpServers` を読み込まないため、`claude mcp add` で登録します。
-
-**Claude.ai（Web 版）**
-
-1. [claude.ai](https://claude.ai) を開き、**Settings → Integrations** に移動
-2. **Add custom integration** をクリック
-3. URL に `https://pubmed-mcp-xxxx-an.a.run.app/mcp` を入力
-
-**Claude Android**
-
-1. アプリを開き、**Settings → Integrations** に移動（表示されない場合は未対応の版）
-2. Web 版と同じ手順で URL を設定
+登録後、Claude Code で `/mcp` を開いて `pubmed-remote` を選び、ブラウザで WorkOS AuthKit にログインして認証します。
 
 **Anthropic API（Python）**
 
 ```python
+import os
+
 import anthropic
 
 client = anthropic.Anthropic()
@@ -419,13 +561,25 @@ response = client.beta.messages.create(
     messages=[{"role": "user", "content": "..."}],
     mcp_servers=[{
         "type": "url",
-        "url": "https://pubmed-mcp-xxxx-an.a.run.app/mcp",
+        "url": "https://pubmed-mcp-PROJECT_NUMBER.asia-northeast1.run.app/mcp",
         "name": "pubmed",
+        "authorization_token": os.environ["PUBMED_MCP_TOKEN"],
     }],
     tools=[{"type": "mcp_toolset", "mcp_server_name": "pubmed"}],
     betas=["mcp-client-2025-11-20"]
 )
 ```
+
+MCP コネクタは OAuth のログインもトークンの更新も行いません。WorkOS AuthKit がこのサーバー向けに発行したアクセストークン
+（`aud` が `MCP_RESOURCE_URL` で、`sub` が `ALLOWED_SUBJECTS` に含まれるもの）を呼び出し側で取得して `authorization_token` に渡し、
+有効期限が切れたら取得し直してください。
+
+テスト用のトークンは MCP Inspector で取得できます（[MCP connector ドキュメント](https://platform.claude.com/docs/en/agents-and-tools/mcp-connector#authentication)）。
+
+1. `npx @modelcontextprotocol/inspector` を実行
+2. **Transport type** で **Streamable HTTP** を選び、URL に `MCP_RESOURCE_URL` を入力
+3. **Open Auth Settings** → **Quick OAuth Flow** をクリックし、WorkOS AuthKit でログイン
+4. **Authentication complete** まで進めたら、表示された `access_token` の値をコピー
 
 ---
 
@@ -443,6 +597,8 @@ gcloud run services update pubmed-mcp \
   --region asia-northeast1 \
   --image asia-northeast1-docker.pkg.dev/MY_PROJECT_ID/pubmed-mcp/server:latest
 ```
+
+`--image` だけを指定した更新では、環境変数とシークレットの設定はそのまま引き継がれます。
 
 ---
 
@@ -464,9 +620,16 @@ npm run lint       # ESLint を実行
 |------|------|------|
 | `NCBI_API_KEY` | 任意 | NCBIのAPIキー。設定するとレートリミットが 3 → 8 req/s になる |
 | `PORT` | 任意 | 設定するとHTTPモードで起動。Cloud Run はこの変数を自動で注入する |
+| `OAUTH_ISSUER` | HTTPモードでは必須 | 認可サーバーの issuer（認可サーバーメタデータの `issuer`）。トークンの `iss` と照合する |
+| `OAUTH_JWKS_URL` | HTTPモードでは必須 | 認可サーバーの JWKS の URL（同じメタデータの `jwks_uri`）。トークンの署名検証に使う |
+| `MCP_RESOURCE_URL` | HTTPモードでは必須 | MCP エンドポイントの公開 URL。トークンの `aud` と照合し、Protected Resource Metadata の `resource` として公開する |
+| `ALLOWED_SUBJECTS` | 任意（推奨） | 接続を許可するトークン `sub` のカンマ区切りリスト。空なら有効なトークンを持つ全ユーザーを許可する |
+
+`OAUTH_ISSUER`・`OAUTH_JWKS_URL`・`MCP_RESOURCE_URL`・`ALLOWED_SUBJECTS` は HTTP モードでのみ使われ、stdio モードでは不要です。
+値の決め方は「[Google Cloud Run へのデプロイ](#google-cloud-run-へのデプロイ)」のステップ 5〜8 を参照してください。
 
 `.env` ファイルを使う場合は `.env.example` をコピーして編集してください。
-本番環境では Cloud Run の `--set-secrets` で Secret Manager から渡してください。
+本番環境では、`NCBI_API_KEY` は Cloud Run の `--set-secrets` で Secret Manager から渡し、OAuth 関連の値は `--set-env-vars` / `--update-env-vars` で設定してください。
 
 ---
 
