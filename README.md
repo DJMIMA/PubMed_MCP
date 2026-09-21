@@ -78,12 +78,19 @@ npm install
 npm run build
 ```
 
+`dist/` はリポジトリに含まれません。`git pull` でソースを更新したら `npm run build` を再実行し、
+MCP クライアントを再起動してください。起動中のサーバーは再起動するまで古いビルドのまま動きます。
+
 ### NCBI API キーの設定（推奨）
 
 APIキーを取得するとレートリミットが 3 → 8 req/s に向上します。
 
 1. [NCBI アカウント](https://www.ncbi.nlm.nih.gov/account/)を作成してAPIキーを発行
 2. 環境変数 `NCBI_API_KEY` にセット（後述のクライアント別設定を参照）
+
+MCP クライアントからローカルで起動する場合は、クライアント設定の `env` でキーを渡してください。
+`.env` は起動時のカレントディレクトリから読み込まれるため、クライアント経由の起動では
+プロジェクト直下の `.env` が読まれないことがあります。
 
 APIキーは、このサーバーを運用する個人または組織が所有・管理するものを設定してください。
 リポジトリにはAPIキーを同梱しません。レスポンス中にNCBI APIの `echo` が含まれる場合も、
@@ -101,7 +108,7 @@ APIキーは、このサーバーを運用する個人または組織が所有�
 
 ### Claude Desktop（ローカル・stdio）
 
-`claude_desktop_config.json` にサーバーを追加します。
+`claude_desktop_config.json` の `mcpServers` にサーバーを追加します。
 
 **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
@@ -109,7 +116,7 @@ APIキーは、このサーバーを運用する個人または組織が所有�
 ```json
 {
   "mcpServers": {
-    "pubmed": {
+    "pubmed-local": {
       "command": "node",
       "args": ["/absolute/path/to/PubMed_MCP/dist/index.js"],
       "env": {
@@ -120,37 +127,31 @@ APIキーは、このサーバーを運用する個人または組織が所有�
 }
 ```
 
-設定後、Claude Desktop を再起動してください。
+- 他のサーバーが登録済みの場合は、`mcpServers` の中に `"pubmed-local": { ... }` を並べて追加します（前の項目との間のカンマを忘れずに）。
+- Windows のパスは `"C:/path/to/PubMed_MCP/dist/index.js"` のようにスラッシュ区切りで書くか、`\\` とエスケープしてください。
+- サーバー名を `pubmed-local` にしておくと、リモート版（`pubmed-remote`）や同じツール名を持つ他の PubMed コネクタと区別しやすくなります。
+
+設定後、Claude Desktop を完全に終了してから再起動してください。ウィンドウを閉じただけではアプリが常駐したままになることがあります（Windows ではタスクトレイのアイコンから終了できます）。
+この設定のサーバーは、Claude Desktop の Code タブで開いたセッションにも読み込まれます。
+
+起動しない場合は、ログ（Windows: `%APPDATA%\Claude\logs\mcp-server-pubmed-local.log`、macOS: `~/Library/Logs/Claude/mcp-server-pubmed-local.log`）を確認してください。
 
 ---
 
 ### Claude Code（ローカル・stdio）
 
-**方法 A — settings.json に直接追加**
-
-`~/.claude/settings.json` を編集します（ファイルが存在しない場合は新規作成）。
-
-```json
-{
-  "mcpServers": {
-    "pubmed": {
-      "command": "node",
-      "args": ["/absolute/path/to/PubMed_MCP/dist/index.js"],
-      "env": {
-        "NCBI_API_KEY": "your_api_key_here"
-      }
-    }
-  }
-}
-```
-
-**方法 B — Claude Code コマンドで追加**
+`claude mcp add` で登録します。`--scope user` を付けるとすべてのプロジェクトで使えます。
 
 ```bash
-claude mcp add pubmed node /absolute/path/to/PubMed_MCP/dist/index.js
+claude mcp add --env NCBI_API_KEY=your_api_key_here --transport stdio --scope user pubmed-local -- node /absolute/path/to/PubMed_MCP/dist/index.js
 ```
 
-追加後、MCP接続状態は `/mcp` コマンドで確認できます。
+- `--` より後ろは、サーバーの起動コマンドとしてそのまま渡されます。
+- `--env` の直後にサーバー名を書くと `KEY=value` の続きとして解釈されてエラーになるため、間に別のオプション（ここでは `--transport stdio`）を挟みます。
+- 登録内容は `~/.claude.json`（user / local スコープ）またはプロジェクト直下の `.mcp.json`（project スコープ）に保存されます。`~/.claude/settings.json` に `mcpServers` を書いても読み込まれません。
+- Claude Desktop の Code タブだけで使う場合は、上記の `claude_desktop_config.json` への登録で読み込まれるため、この手順は不要です。
+
+登録後、`claude mcp list` または Claude Code 内の `/mcp` で接続状態を確認できます。
 
 ---
 
@@ -299,7 +300,6 @@ gcloud run deploy pubmed-mcp \
 
 ### ステップ 6 — 動作確認
 
-```bash
 **Linux / macOS (bash)**
 
 ```bash
@@ -361,18 +361,13 @@ curl.exe "$CLOUD_RUN_URL/mcp" -X POST -H "Content-Type: application/json" `
 }
 ```
 
-**Claude Code (`~/.claude/settings.json`)**
+**Claude Code**
 
-```json
-{
-  "mcpServers": {
-    "pubmed-remote": {
-      "type": "streamable-http",
-      "url": "https://pubmed-mcp-xxxx-an.a.run.app/mcp"
-    }
-  }
-}
+```bash
+claude mcp add --transport http --scope user pubmed-remote https://pubmed-mcp-xxxx-an.a.run.app/mcp
 ```
+
+Claude Code は `~/.claude/settings.json` の `mcpServers` を読み込まないため、`claude mcp add` で登録します。
 
 **Claude.ai（Web 版）**
 
