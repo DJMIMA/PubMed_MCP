@@ -12,11 +12,14 @@ import type { GetFullTextArticleResponse, FullTextArticle } from '../pubmed/type
 import { IMPORTANT_LEGAL_NOTICE } from '../pubmed/types.js';
 import { parsePmcEfetchXml } from '../utils/xml.js';
 
+/** PMCIDs per request; the CLI splits longer lists into batches of this size. */
+export const MAX_FULL_TEXT_IDS = 20;
+
 export const getFullTextArticleSchema = {
   pmc_ids: z
     .array(z.string().min(1))
     .min(1)
-    .max(20)
+    .max(MAX_FULL_TEXT_IDS)
     .describe(
       'Array of PubMed Central IDs (PMCIDs) to retrieve full text for. ' +
         'PMCIDs must include the "PMC" prefix (e.g., ["PMC9583675", "PMC7984072"]). ' +

@@ -14,6 +14,8 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
 | `get_full_text_article` | PMC Open Access記事の本文全文をプレーンテキストで取得 |
 | `get_copyright_status` | 全文取得の可否（`has_full_text`）・ライセンス・著作権表示・OAステータスを確認。PMCのEFetchメタデータを使用（旧PMC OA Web Serviceは2026-08-25に廃止） |
 
+同じツールは、シェルから `pubmed` コマンドとしても実行できます（「[CLI](#cli)」を参照）。
+
 ---
 
 ## `search_articles` の ATM 診断とフィールド制限
@@ -66,6 +68,7 @@ MCP ツール自体の実行エラーとは別の情報です。
 - **Node.js** 18 以上
 - **npm** 8 以上
 - **NCBI API キー**（任意。なくても動作するが、レートリミットが 3 req/s に制限される）
+- **jq**（任意。[CLI](#cli) の出力から必要なフィールドを取り出すのに使う）
 
 ---
 
@@ -239,6 +242,99 @@ Fatal error: Error: Missing required environment variable: OAUTH_ISSUER
 `.env` にこれらの値を設定してから起動してください（各値の意味は「[環境変数](#環境変数)」を参照）。
 `/health` や 401 応答を確かめるだけなら URL 形式の仮の値でも起動できますが、`/mcp` を実際に呼び出すには
 `MCP_RESOURCE_URL` を `aud` として発行されたアクセストークンが必要です。認証なしでツールを試す場合は stdio モードを使ってください。
+
+---
+
+## CLI
+
+MCP サーバーと同じツールを、シェルから `pubmed` コマンドとして実行できます。出力は MCP ツールと同じ JSON で、
+標準出力またはファイル（`-o`）に書き出されます。結果をファイルに保存して `jq` で必要なフィールドだけを取り出せば、
+Claude Code や Codex などのエージェントが大量のメタデータをコンテキストに読み込まずに済みます。
+
+たとえば `TP53 AND myelodysplastic syndromes[mh]` の上位 20 件のメタデータは約 108 KB ありますが、
+PMID・年・タイトルだけを取り出すと 3.2 KB（約 1/34）になります。全文は 1 本で数万文字あります。
+
+### インストール
+
+```bash
+npm install
+npm run build
+npm link
+```
+
+`npm link` で `pubmed` コマンドが登録されます（`pubmed-mcp` コマンドも同時に登録されます）。`pubmed --help` が表示されれば完了です。
+コマンドはこのリポジトリの `dist/` を実行するため、`git pull` の後は `npm run build` を再実行してください。
+登録を解除するには `npm rm -g pubmed-mcp` を実行します。
+
+NCBI API キーは環境変数 `NCBI_API_KEY` から読み込みます。環境変数がない場合はこのリポジトリ直下の `.env`
+（`cp .env.example .env` で作成）を読み込むため、どのディレクトリから実行してもキーが使われます。
+
+### コマンド
+
+| コマンド | 対応する MCP ツール | 入力 | 1 リクエストの件数 |
+|---|---|---|---|
+| `pubmed search <query>` | `search_articles` | 検索式（`-` で標準入力から） | — |
+| `pubmed metadata <pmid>...` | `get_article_metadata` | PMID | 200 |
+| `pubmed related <pmid>...` | `find_related_articles` | PMID | 200 |
+| `pubmed citation --journal <雑誌> --year <年> ...` | `lookup_article_by_citation` | オプション、または `--input` で JSON 配列か JSON Lines | 100 |
+| `pubmed convert <id>...` | `convert_article_ids` | PMID・PMCID・DOI のいずれか（`--id-type` で指定） | 200 |
+| `pubmed fulltext <pmcid>...` | `get_full_text_article` | PMCID | 20 |
+| `pubmed copyright <pmid>...` | `get_copyright_status` | PMID | 50 |
+
+- オプション名は MCP のパラメータ名をケバブケースにしたものです（`max_results` → `--max-results`、`date_from` → `--date-from` など）。詳しくは `pubmed <command> --help` を参照してください。
+- ID は引数（空白またはカンマ区切り）で渡すか、`-` を指定して標準入力から 1 行 1 件で渡します。
+- 1 リクエストの件数を超える ID は自動で分割して順番に送り、結果を 1 つの JSON にまとめます。MCP ツールの件数上限（メタデータなら 200 件）は受けません。
+- `-o <file>` を付けると JSON をファイルに書き出し、件数とファイルサイズを標準エラー出力に表示します。
+- 終了コードは、成功で 0、NCBI やファイル操作のエラーで 1、使い方の誤りで 2 です。エラーの内容は標準エラー出力に出ます。
+
+### 使用例
+
+```bash
+# 検索して、PubMed が検索式をどう解釈したかを確認する
+pubmed search "TP53[tiab] AND myelodysplastic syndromes[mh]" --max-results 200 -o search.json
+jq '{total_count, query_translation, warnings, errors}' search.json
+
+# ヒットした全件のメタデータを取得し、PMID・年・雑誌・タイトルの一覧にする
+jq -r '.pmids[]' search.json | pubmed metadata - -o meta.json
+jq -r '.articles[] | [.identifiers.pmid, .publication_date.year, .journal.iso_abbreviation, .title] | @tsv' meta.json
+
+# 全文を取得できる論文だけ全文を取得し、必要な箇所だけを検索する
+jq -r '.pmids[]' search.json | pubmed copyright - -o rights.json
+jq -r '.statuses[] | select(.has_full_text) | .pmcid' rights.json | pubmed fulltext - -o full.json
+jq -r '.articles[].full_text' full.json | grep -n -i 'venetoclax'
+```
+
+### エージェントから使う
+
+[`skills/pubmed-cli/SKILL.md`](skills/pubmed-cli/SKILL.md) は、CLI の使い方（結果はファイルに保存して jq で読む、ID はまとめて 1 回で渡す、など）と
+jq のレシピをエージェントに教える Skill です。ユーザー単位のスキルフォルダにコピーすると、どのプロジェクトでも使われます。
+Claude Code（Claude Desktop の Code タブを含む）は `~/.claude/skills/`、Codex は `~/.agents/skills/` から読み込みます
+（Windows では `~` が `%USERPROFILE%` になります）。
+
+```bash
+mkdir -p ~/.claude/skills ~/.agents/skills
+cp -r skills/pubmed-cli ~/.claude/skills/
+cp -r skills/pubmed-cli ~/.agents/skills/
+```
+
+Skill を更新したときは、もう一度コピーしてください。
+
+Claude Code でコマンドを実行するたびに許可を求められないようにするには、`~/.claude/settings.json` の `permissions.allow` に
+`pubmed` と `jq` を追加します（既に設定がある場合は配列に追記してください）。
+
+```json
+{
+  "permissions": {
+    "allow": ["Bash(pubmed:*)", "Bash(jq:*)"]
+  }
+}
+```
+
+注意点:
+
+- CLI はシェルを実行できる環境（Claude Code、Codex など）でしか使えません。claude.ai のチャットや、Cloud Run にデプロイしたカスタムコネクタからは、これまでどおり MCP サーバーを使ってください。
+- NCBI のレート制限はプロセスごとにかかります。`pubmed` を並列で複数起動すると合計で上限を超えるため、ID はまとめて 1 回の実行で渡してください。
+- Windows では Git Bash か PowerShell 7 でパイプラインを実行してください。Windows PowerShell 5.1 の `>` はファイルを UTF-16 で保存するため、代わりに `-o` を使ってください。
 
 ---
 
@@ -607,6 +703,7 @@ gcloud run services update pubmed-mcp \
 ```bash
 npm run build      # TypeScript をコンパイル → dist/
 npm run dev        # tsx で直接実行（開発用）
+npm run cli -- search "CRISPR" --max-results 5   # CLI を tsx で直接実行（開発用）
 npm test           # テストスイートを実行
 npm run typecheck  # 型チェックのみ（コンパイルなし）
 npm run lint       # ESLint を実行

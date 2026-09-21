@@ -9,6 +9,9 @@ import { z } from 'zod';
 import type { NcbiClient } from '../pubmed/client.js';
 import type { LookupArticleByCitationResponse, CitationResult } from '../pubmed/types.js';
 
+/** Citations per request; the CLI splits longer lists into batches of this size. */
+export const MAX_CITATIONS = 100;
+
 export const lookupArticleByCitationSchema = {
   citations: z
     .array(
@@ -55,7 +58,7 @@ export const lookupArticleByCitationSchema = {
       })
     )
     .min(1)
-    .max(100)
+    .max(MAX_CITATIONS)
     .describe(
       'Array of citation objects to look up. ' +
         'Provide as much information as available for best match accuracy.'
