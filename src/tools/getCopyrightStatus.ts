@@ -16,11 +16,14 @@ import type { NcbiClient } from '../pubmed/client.js';
 import type { GetCopyrightStatusResponse, CopyrightStatus } from '../pubmed/types.js';
 import { parsePmcAccessXml, type PmcAccessInfo } from '../utils/xml.js';
 
+/** PMIDs per request; the CLI splits longer lists into batches of this size. */
+export const MAX_COPYRIGHT_PMIDS = 50;
+
 export const getCopyrightStatusSchema = {
   pmids: z
     .array(z.string().min(1))
     .min(1)
-    .max(50)
+    .max(MAX_COPYRIGHT_PMIDS)
     .describe('Array of PubMed IDs (PMIDs) to check copyright status for.'),
 };
 

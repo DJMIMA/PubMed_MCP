@@ -11,14 +11,17 @@ import type { GetArticleMetadataResponse } from '../pubmed/types.js';
 import { IMPORTANT_LEGAL_NOTICE } from '../pubmed/types.js';
 import { parsePubmedEfetchXml } from '../utils/xml.js';
 
+/** PMIDs per request; the CLI splits longer lists into batches of this size. */
+export const MAX_METADATA_PMIDS = 200;
+
 export const getArticleMetadataSchema = {
   pmids: z
     .array(z.string().min(1))
     .min(1)
-    .max(200)
+    .max(MAX_METADATA_PMIDS)
     .describe(
       'Array of PubMed IDs (PMIDs) to retrieve metadata for. ' +
-        'Maximum 200 PMIDs per request.'
+        `Maximum ${MAX_METADATA_PMIDS} PMIDs per request.`
     ),
 };
 

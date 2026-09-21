@@ -137,6 +137,7 @@ Once the project is set up, expect these commands:
 npm install          # Install dependencies
 npm run build        # Compile TypeScript to dist/
 npm run dev          # Run with ts-node/nodemon for development
+npm run cli -- <command> [args]  # Run the pubmed CLI from source
 npm test             # Run test suite
 npm run lint         # Run ESLint
 npm run typecheck    # Run tsc --noEmit
@@ -180,5 +181,6 @@ To run the MCP server locally with Claude Desktop or another MCP client, configu
 - Do not commit environment files or credentials.
 - Prefer simple, readable implementations over clever abstractions — this is a focused tool server.
 - When adding a new MCP tool, register it in `src/server.ts` and add a corresponding test file under `tests/tools/`.
+- The `pubmed` CLI (`src/cli.ts`, `src/cli/`) runs the same tool functions and prints the same JSON as the MCP server. When adding or changing a tool, update its command in `src/cli/commands.ts`, the tests in `tests/cli/`, and the command table in `skills/pubmed-cli/SKILL.md`.
 - Run `npm run typecheck` and `npm test` before committing any changes.
 - When in doubt about PubMed API behavior, cite the NCBI E-utilities documentation.

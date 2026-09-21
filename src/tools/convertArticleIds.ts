@@ -9,11 +9,14 @@ import { z } from 'zod';
 import type { NcbiClient } from '../pubmed/client.js';
 import type { ConvertArticleIdsResponse } from '../pubmed/types.js';
 
+/** IDs per request; the CLI splits longer lists into batches of this size. */
+export const MAX_CONVERT_IDS = 200;
+
 export const convertArticleIdsSchema = {
   ids: z
     .array(z.string().min(1))
     .min(1)
-    .max(200)
+    .max(MAX_CONVERT_IDS)
     .describe(
       'Array of article IDs to convert. ' +
         'Format depends on id_type: PMIDs are numeric strings (e.g., "33526711"), ' +

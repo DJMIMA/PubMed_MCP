@@ -5,11 +5,13 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "pubmed-mcp": "dist/index.js"
+    "pubmed-mcp": "dist/index.js",
+    "pubmed": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
+    "cli": "tsx src/cli.ts",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
