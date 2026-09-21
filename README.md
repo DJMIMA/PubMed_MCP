@@ -155,6 +155,33 @@ claude mcp add --env NCBI_API_KEY=your_api_key_here --transport stdio --scope us
 
 ---
 
+### Codex（ローカル・stdio）
+
+Codex のデスクトップアプリ・CLI・IDE 拡張は、同じ設定ファイル `~/.codex/config.toml`（Windows: `%USERPROFILE%\.codex\config.toml`）を共有します。次のブロックを追記してください。
+
+```toml
+[mcp_servers.pubmed-local]
+command = "node"
+args = ["/absolute/path/to/PubMed_MCP/dist/index.js"]
+
+[mcp_servers.pubmed-local.env]
+NCBI_API_KEY = "your_api_key_here"
+```
+
+- Windows のパスはシングルクォート（TOML のリテラル文字列）で囲むと、`\` をそのまま書けます（例: `args = ['C:\path\to\PubMed_MCP\dist\index.js']`）。ダブルクォートで囲む場合は `\\` とエスケープしてください。
+- `node` が見つからずに起動しない場合は、`command` に Node.js の絶対パス（例: `'C:\Program Files\nodejs\node.exe'`）を指定します。
+- Codex は OS の環境変数をそのまま MCP サーバーへ渡しません。API キーは上のように `env` に書くか、`[mcp_servers.pubmed-local]` に `env_vars = ["NCBI_API_KEY"]` を追加して Codex 側の環境変数から転送してください。
+
+CLI からは `codex mcp add` でも登録できます。
+
+```bash
+codex mcp add pubmed-local --env NCBI_API_KEY=your_api_key_here -- node /absolute/path/to/PubMed_MCP/dist/index.js
+```
+
+設定後は Codex を再起動してください（デスクトップアプリでは **Settings → MCP servers** の **Restart**）。同じ画面の **Add server** から登録することもできます。CLI と IDE 拡張では `/mcp` で接続中のサーバーを確認できます。
+
+---
+
 ### Anthropic API（プログラムからの利用）
 
 ```python
