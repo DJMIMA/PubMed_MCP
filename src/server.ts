@@ -38,14 +38,18 @@ import {
   getCopyrightStatus,
 } from './tools/getCopyrightStatus.js';
 
-/** Create and return a configured MCP server instance. */
-export function createServer(): McpServer {
+/**
+ * Create and return a configured MCP server instance.
+ *
+ * @param client NCBI client used by every tool. Rate limiting is per client,
+ *   so pass one shared client when creating several servers (HTTP mode
+ *   creates one per request). Defaults to a new client.
+ */
+export function createServer(client: NcbiClient = new NcbiClient()): McpServer {
   const server = new McpServer({
     name: 'pubmed',
     version: '1.0.0',
   });
-
-  const client = new NcbiClient();
 
   // ── search_articles ──────────────────────────────────────────────────────
 
