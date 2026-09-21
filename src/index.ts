@@ -38,6 +38,7 @@ import type { Request, Response, NextFunction } from 'express';
 loadDotenv({ quiet: true });
 
 import { createServer } from './server.js';
+import { NcbiClient } from './pubmed/client.js';
 
 async function main(): Promise<void> {
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : undefined;
@@ -50,6 +51,12 @@ async function main(): Promise<void> {
 }
 
 // ── HTTP mode (Cloud Run) ──────────────────────────────────────────────────
+
+// One NCBI client for the whole process. HTTP mode creates an MCP server per
+// request, and passing them all this client makes its rate limiter span
+// concurrent requests instead of restarting with each one. Must be created
+// after loadDotenv() so that it reads NCBI_API_KEY from .env.
+const sharedNcbiClient = new NcbiClient();
 
 async function startHttpServer(port: number): Promise<void> {
   const { default: express } = await import('express');
@@ -89,7 +96,7 @@ async function startHttpServer(port: number): Promise<void> {
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // stateless mode
     });
-    const mcpServer = createServer();
+    const mcpServer = createServer(sharedNcbiClient);
     mcpServer
       .connect(transport)
       .then(() => transport.handleRequest(req, res, req.body as unknown))
