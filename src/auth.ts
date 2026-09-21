@@ -12,17 +12,25 @@
  *      JWKS (signature, issuer, audience, expiry).
  *   3. Restricts access to an allowlist of token subjects — since DCR lets
  *      anyone register a client, this is what makes the server *yours only*.
+ *      With the allowlist empty, any valid token is accepted.
  *
  * Required environment variables (copy issuer/jwks from the provider's
  *   https://<your-authkit-domain>/.well-known/oauth-authorization-server ):
  *   OAUTH_ISSUER      — `issuer` from that document
  *   OAUTH_JWKS_URL    — `jwks_uri` from that document
- *   MCP_RESOURCE_URL  — public URL of this server's MCP endpoint
- *                       (e.g. https://pubmed-mcp-xxxx.run.app/mcp); used as the
- *                       expected token `aud` and as the resource identifier
- *   ALLOWED_SUBJECTS  — comma-separated user IDs permitted to connect.
- *                       Leave empty on first deploy to discover your own id
- *                       from the logs, then set it and redeploy.
+ *   MCP_RESOURCE_URL  — public URL of this server's MCP endpoint, exactly as
+ *                       clients connect to it (e.g.
+ *                       https://pubmed-mcp-PROJECT_NUMBER.asia-northeast1.run.app/mcp);
+ *                       used as the expected token `aud` and as the resource
+ *                       identifier
+ *
+ * Optional:
+ *   ALLOWED_SUBJECTS  — comma-separated token `sub` values (user IDs) permitted
+ *                       to connect. When empty, nothing is logged, so to find
+ *                       your own id deploy with a placeholder value first:
+ *                       rejected subjects are logged as
+ *                       "[auth] forbidden subject: <sub>". Then set the real
+ *                       value with `gcloud run services update --update-env-vars`.
  */
 
 import type { Request, Response, NextFunction } from 'express';

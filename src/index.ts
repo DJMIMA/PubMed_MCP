@@ -5,19 +5,28 @@
  * Transport is selected at startup based on environment:
  *
  *   STDIO mode (default):
- *     Used for Claude Desktop and Anthropic API MCP connector.
+ *     Used by local MCP clients that launch the server as a subprocess
+ *     (Claude Desktop, Claude Code, Codex).
  *     Start with:  node dist/index.js
  *
  *   HTTP mode (Cloud Run / remote deployment):
  *     Activated when the PORT environment variable is set.
  *     Starts an Express server that handles Streamable HTTP transport at /mcp.
+ *     Used by remote clients: Claude custom connectors and the Anthropic API
+ *     MCP connector, which can only reach servers over HTTP.
+ *     /mcp requires an OAuth 2.0 Bearer token (see auth.ts); /health and
+ *     /.well-known/oauth-protected-resource are public.
  *     Cloud Run injects PORT=8080 automatically.
- *     Start with:  PORT=8080 node dist/index.js
+ *     Start with:  PORT=8080 node dist/index.js  (plus the OAuth variables)
  *
  * Environment variables:
- *   NCBI_API_KEY — NCBI API key; raises rate limit from 3 → 8 req/s
- *                  Register free at https://www.ncbi.nlm.nih.gov/account/
- *   PORT         — When set, enables HTTP mode on the specified port.
+ *   NCBI_API_KEY     — NCBI API key; raises rate limit from 3 → 8 req/s
+ *                      Register free at https://www.ncbi.nlm.nih.gov/account/
+ *   PORT             — When set, enables HTTP mode on the specified port.
+ *   OAUTH_ISSUER, OAUTH_JWKS_URL, MCP_RESOURCE_URL
+ *                    — Required in HTTP mode; startup fails without them.
+ *   ALLOWED_SUBJECTS — Optional allowlist of token subjects (HTTP mode).
+ *                      See auth.ts for all four.
  */
 
 // Load .env file if present. Silently skipped in production where env vars
