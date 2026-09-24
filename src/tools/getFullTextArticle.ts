@@ -2,7 +2,8 @@
  * Tool: get_full_text_article
  *
  * Retrieve the full text of articles from PubMed Central (PMC).
- * Only articles in the PMC Open Access Subset have full text available.
+ * Full text is available for PMC articles whose publisher allows full-text
+ * download (the same test get_copyright_status uses for has_full_text).
  * Articles not in PMC will return an error entry.
  */
 
@@ -23,8 +24,8 @@ export const getFullTextArticleSchema = {
     .describe(
       'Array of PubMed Central IDs (PMCIDs) to retrieve full text for. ' +
         'PMCIDs must include the "PMC" prefix (e.g., ["PMC9583675", "PMC7984072"]). ' +
-        'Only articles in the PMC Open Access Subset have full text available; ' +
-        'unavailable articles are excluded from articles and reported in errors.'
+        'Articles without downloadable full text are excluded from articles ' +
+        'and reported in errors.'
     ),
 };
 

@@ -8,38 +8,26 @@ This file provides guidance for AI assistants (Codex and others) working in this
 
 **PubMed_MCP** is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that provides structured access to PubMed, the biomedical literature database maintained by the National Center for Biotechnology Information (NCBI). It enables AI assistants and LLM-based tools to search, retrieve, and reason over scientific publications via the NCBI E-utilities API.
 
-**Current status:** Project initialized. No implementation exists yet. This branch (`Codex/add-Codex-documentation-T7kFG`) adds foundational documentation before development begins.
+**Status:** Seven MCP tools over stdio and OAuth-protected Streamable HTTP, plus a `pubmed` CLI that runs the same tool functions.
 
 ---
 
-## Repository Structure (Anticipated)
-
-Once implemented, the project is expected to follow this structure:
+## Repository Structure
 
 ```
 PubMed_MCP/
 ├── AGENTS.md              # This file
-├── README.md              # User-facing documentation
-├── package.json           # Node.js project manifest
-├── tsconfig.json          # TypeScript compiler configuration
-├── .env.example           # Template for environment variables
-├── .gitignore             # Git ignore rules
+├── skills/pubmed-cli/SKILL.md  # Agent skill for the pubmed CLI
+├── Dockerfile             # Cloud Run image (HTTP mode)
 ├── src/
-│   ├── index.ts           # MCP server entrypoint
-│   ├── server.ts          # Server initialization and tool registration
-│   ├── tools/             # Individual MCP tool definitions
-│   │   ├── search.ts      # PubMed search tool
-│   │   ├── fetch.ts       # Article fetching/details tool
-│   │   └── summary.ts     # Abstract/summary retrieval tool
-│   ├── pubmed/            # NCBI E-utilities API client
-│   │   ├── client.ts      # HTTP client wrapper
-│   │   └── types.ts       # PubMed API response types
-│   └── utils/
-│       └── xml.ts         # XML/JSON parsing utilities
-├── tests/
-│   ├── tools/             # Unit tests for MCP tools
-│   └── pubmed/            # Unit tests for API client
-└── dist/                  # Compiled output (gitignored)
+│   ├── index.ts           # Entrypoint: stdio, or HTTP when PORT is set
+│   ├── server.ts          # Tool registration (names and descriptions)
+│   ├── auth.ts            # OAuth bearer-token checks for HTTP mode
+│   ├── cli.ts, cli/       # pubmed CLI (commands.ts, run.ts)
+│   ├── tools/             # One file per tool: Zod schema + handler
+│   ├── pubmed/            # NCBI E-utilities client and response types
+│   └── utils/xml.ts       # PubMed/PMC XML parsing
+└── tests/                 # cli/, pubmed/, tools/, utils/, server.test.ts
 ```
 
 ---
@@ -49,9 +37,10 @@ PubMed_MCP/
 - **Runtime:** Node.js (>=18)
 - **Language:** TypeScript (strict mode)
 - **MCP SDK:** `@modelcontextprotocol/sdk`
-- **HTTP Client:** `axios` or Node.js native `fetch`
-- **XML Parsing:** `fast-xml-parser` or `xml2js` (PubMed returns XML by default)
-- **Testing:** `vitest` or `jest`
+- **HTTP Client:** `axios`
+- **XML Parsing:** `fast-xml-parser`
+- **HTTP server / auth:** `express`, `jose`
+- **Testing:** `vitest`
 - **Linting:** `eslint` with TypeScript rules
 - **Formatting:** `prettier`
 
@@ -70,26 +59,12 @@ PubMed_MCP/
 ### MCP Server Patterns
 
 MCP tools must be registered with:
-- A unique `name` (snake_case, e.g., `search_pubmed`)
+- A unique `name` (snake_case, e.g., `search_articles`)
 - A `description` in plain English that explains what the tool does
 - An `inputSchema` defined using JSON Schema (validated with Zod at runtime)
 - A handler function that returns `{ content: [{ type: "text", text: "..." }] }`
 
-Example tool registration pattern:
-```typescript
-server.tool(
-  "search_pubmed",
-  "Search PubMed for articles matching a query",
-  {
-    query: z.string().describe("Search terms or boolean query"),
-    max_results: z.number().int().min(1).max(100).default(10).optional(),
-  },
-  async ({ query, max_results = 10 }) => {
-    // implementation
-    return { content: [{ type: "text", text: results }] };
-  }
-);
-```
+Follow the existing registrations in `src/server.ts`; each tool's schema and handler live in `src/tools/<toolName>.ts`.
 
 ### PubMed / NCBI E-utilities
 
@@ -109,6 +84,8 @@ server.tool(
 |------------------|----------|-----------------------------------------|
 | `NCBI_API_KEY`   | No       | NCBI API key for higher rate limits     |
 | `PORT`           | No       | Port to run the MCP server (default: stdio transport) |
+| `OAUTH_ISSUER`, `OAUTH_JWKS_URL`, `MCP_RESOURCE_URL` | HTTP mode | OAuth settings; the server exits at startup in HTTP mode if any is empty |
+| `ALLOWED_SUBJECTS` | No     | Comma-separated token `sub` values allowed to use `/mcp` (HTTP mode) |
 
 ### Error Handling
 
@@ -124,19 +101,17 @@ server.tool(
 | Classes           | PascalCase     | `PubMedClient`             |
 | Functions/methods | camelCase      | `searchArticles()`         |
 | Constants         | UPPER_SNAKE    | `NCBI_BASE_URL`            |
-| MCP tool names    | snake_case     | `search_pubmed`            |
+| MCP tool names    | snake_case     | `search_articles`            |
 | Types/Interfaces  | PascalCase     | `ArticleSummary`           |
 
 ---
 
 ## Common Commands
 
-Once the project is set up, expect these commands:
-
 ```bash
 npm install          # Install dependencies
 npm run build        # Compile TypeScript to dist/
-npm run dev          # Run with ts-node/nodemon for development
+npm run dev          # Run the server from source with tsx
 npm run cli -- <command> [args]  # Run the pubmed CLI from source
 npm test             # Run test suite
 npm run lint         # Run ESLint
@@ -177,7 +152,6 @@ To run the MCP server locally with Codex Desktop or another MCP client, configur
 
 ## Notes for AI Assistants
 
-- This repo is in early-stage development. When implementing features, start with `src/index.ts` and `src/server.ts`.
 - Do not commit environment files or credentials.
 - Prefer simple, readable implementations over clever abstractions — this is a focused tool server.
 - When adding a new MCP tool, register it in `src/server.ts` and add a corresponding test file under `tests/tools/`.
