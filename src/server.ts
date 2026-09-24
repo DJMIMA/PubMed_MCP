@@ -78,9 +78,11 @@ export function createServer(client: NcbiClient = new NcbiClient()): McpServer {
 
   server.tool(
     'get_article_metadata',
-    'Retrieve complete metadata for one or more PubMed articles by PMID. ' +
+    'Retrieve complete metadata for up to 200 PubMed articles by PMID. ' +
       'Returns title, abstract, authors, affiliations, journal info, ' +
-      'publication date, MeSH terms, keywords, and article type for each article.',
+      'publication date, MeSH terms, keywords, and article type for each article. ' +
+      'PMIDs that PubMed does not return are left out of articles, so compare count ' +
+      'with the number of PMIDs requested.',
     getArticleMetadataSchema,
     async (params) => {
       try {
@@ -100,7 +102,11 @@ export function createServer(client: NcbiClient = new NcbiClient()): McpServer {
     'find_related_articles',
     'Find articles related to one or more PubMed articles using NCBI ELink. ' +
       'Supports similar articles, PMC articles that cite the source, ' +
-      'and cross-database links to NCBI Gene, Protein, or Nucleotide databases.',
+      'and cross-database links to NCBI Gene, Protein, or Nucleotide databases. ' +
+      'Returned links are IDs in the target database: PMIDs for similar_articles, ' +
+      'numeric PMC IDs without the "PMC" prefix for citing_pmc_articles (convert them ' +
+      'with convert_article_ids, id_type pmcid), and Gene or RefSeq record IDs for ' +
+      'the linked_* types.',
     findRelatedArticlesSchema,
     async (params) => {
       try {
@@ -120,7 +126,8 @@ export function createServer(client: NcbiClient = new NcbiClient()): McpServer {
     'lookup_article_by_citation',
     'Look up PubMed IDs for articles given structured citation information ' +
       '(journal, year, volume, first page, first author). ' +
-      'Useful for verifying references or resolving citations found in manuscripts.',
+      'Useful for verifying references or resolving citations found in manuscripts. ' +
+      'Each result echoes its key; pmid is an empty string when no article matched.',
     lookupArticleByCitationSchema,
     async (params) => {
       try {
@@ -142,7 +149,8 @@ export function createServer(client: NcbiClient = new NcbiClient()): McpServer {
     'convert_article_ids',
     'Convert article identifiers between PMID, PMCID, and DOI formats. ' +
       'For example, convert a list of PMIDs to DOIs, or find the PMCID for a DOI. ' +
-      'Uses the NCBI PMC ID Converter service.',
+      'Uses the NCBI PMC ID Converter service, up to 200 IDs per request. ' +
+      'IDs it cannot convert come back as records with errmsg set.',
     convertArticleIdsSchema,
     async (params) => {
       try {
@@ -163,9 +171,9 @@ export function createServer(client: NcbiClient = new NcbiClient()): McpServer {
     'Retrieve the full text of articles from PubMed Central (PMC). ' +
       'Returns the complete article body including all sections, figure captions, ' +
       'table captions, and references as plain text. ' +
-      'Only articles in the PMC Open Access Subset have full text available. ' +
-      'Unavailable articles are reported in the errors array. ' +
-      'Use convert_article_ids to find PMCIDs from PMIDs first.',
+      'Full text is available for PMC articles whose publisher allows full-text ' +
+      'download; unavailable articles are reported in the errors array. ' +
+      'Starting from PMIDs, get_copyright_status returns each pmcid and has_full_text.',
     getFullTextArticleSchema,
     async (params) => {
       try {
