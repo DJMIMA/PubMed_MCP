@@ -1,0 +1,23 @@
+name: Dependency audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly, so advisories published after the last change are still caught.
+    - cron: '0 0 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Production dependencies only; fails on high or critical findings.
+      - run: npm audit --omit=dev --audit-level=high
