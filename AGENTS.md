@@ -34,7 +34,7 @@ PubMed_MCP/
 
 ## Technology Stack
 
-- **Runtime:** Node.js (>=18)
+- **Runtime:** Node.js (>=22)
 - **Language:** TypeScript (strict mode)
 - **MCP SDK:** `@modelcontextprotocol/sdk`
 - **HTTP Client:** `axios`
