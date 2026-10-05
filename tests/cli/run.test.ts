@@ -272,6 +272,44 @@ describe('metadata', () => {
     expect(mockClient.efetch).toHaveBeenCalledWith(expect.objectContaining({ id: ['1', '2', '3'] }));
   });
 
+  it('passes --authors and --affiliations to the tool', async () => {
+    const authorXml = (name: string) =>
+      `<Author><LastName>${name}</LastName><ForeName>X</ForeName><Initials>X</Initials>` +
+      `<AffiliationInfo><Affiliation>Lab ${name}</Affiliation></AffiliationInfo></Author>`;
+    mockClient.efetch.mockResolvedValue(
+      `<PubmedArticleSet><PubmedArticle><MedlineCitation><PMID>1</PMID><Article>` +
+        `<ArticleTitle>T</ArticleTitle><AuthorList>${['A', 'B', 'C'].map(authorXml).join('')}</AuthorList>` +
+        `</Article></MedlineCitation></PubmedArticle></PubmedArticleSet>`
+    );
+
+    const first = await run(['metadata', '1', '--authors', 'first_last']);
+
+    expect(first.code).toBe(0);
+    const [article] = JSON.parse(first.io.out).articles;
+    expect(article.authors).toEqual([
+      { last_name: 'A', fore_name: 'X', initials: 'X' },
+      { last_name: 'C', fore_name: 'X', initials: 'X' },
+    ]);
+    expect(article.author_count).toBe(3);
+
+    const withAffiliations = await run(['metadata', '1', '--authors', 'first', '--affiliations', 'true']);
+
+    expect(JSON.parse(withAffiliations.io.out).articles[0].authors).toEqual([
+      { last_name: 'A', fore_name: 'X', initials: 'X', affiliations: ['Lab A'] },
+    ]);
+  });
+
+  it('rejects an invalid --authors or --affiliations value', async () => {
+    const bad = await run(['metadata', '1', '--authors', 'everyone']);
+    expect(bad.code).toBe(2);
+    expect(bad.io.err).toContain('invalid --authors');
+
+    const badBool = await run(['metadata', '1', '--affiliations', 'no']);
+    expect(badBool.code).toBe(2);
+    expect(badBool.io.err).toContain('--affiliations must be true or false');
+    expect(mockClient.efetch).not.toHaveBeenCalled();
+  });
+
   it('rejects JSON on stdin and says how to extract the IDs', async () => {
     const { code, io } = await run(['metadata', '-'], fakeIo('{"pmids":["1","2"]}\n'));
 

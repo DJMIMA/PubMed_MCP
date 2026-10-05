@@ -147,24 +147,39 @@ const metadata: Command = {
   name: 'metadata',
   tool: 'get_article_metadata',
   description: 'Get title, abstract, authors, MeSH terms, etc.',
-  options: {},
-  help: `Usage: pubmed metadata <pmid>... | -
+  options: {
+    authors: { type: 'string' },
+    affiliations: { type: 'string' },
+  },
+  help: `Usage: pubmed metadata <pmid>... | - [options]
 
-Get title, abstract, authors with affiliations, journal, publication date,
-MeSH terms, keywords, and article types (same JSON as get_article_metadata).
+Get title, abstract, authors, journal, publication date, MeSH terms,
+keywords, and article types (same JSON as get_article_metadata).
 Lists longer than ${MAX_METADATA_PMIDS} PMIDs are fetched in batches and merged.
 
-Records are large (about 5 KB each, mostly abstracts and affiliations): save
+Options:
+  --authors <mode>       all (default) | first_last | first | none
+                         author_count always gives the full number of authors
+  --affiliations <bool>  false (default) | true: include the affiliations of
+                         the returned authors
+
+Records are large (abstracts, and with --affiliations also affiliations): save
 them with -o and extract the fields you need with jq.
 
 Example:
-  jq -r '.pmids[]' search.json | pubmed metadata - -o meta.json
+  jq -r '.pmids[]' search.json | pubmed metadata - --authors first_last -o meta.json
   jq -r '.articles[] | [.identifiers.pmid, .publication_date.year, .title] | @tsv' meta.json
 `,
   async execute(input, client) {
     const pmids = await readIds(input, PMID);
+    const authors = input.values.authors;
+    const affiliations = boolOption(input, 'affiliations');
     const batches = chunk(pmids, MAX_METADATA_PMIDS).map((batch) =>
-      validate(getArticleMetadataSchema, { pmids: batch })
+      validate(getArticleMetadataSchema, {
+        pmids: batch,
+        authors,
+        include_affiliations: affiliations,
+      })
     );
     const results = await runBatches(batches, (params) => getArticleMetadata(params, client));
 
@@ -552,6 +567,14 @@ function intOption(input: CommandInput, name: string): number | undefined {
     throw new UsageError(`--${name} must be a whole number, got ${JSON.stringify(value)}`);
   }
   return Number(value);
+}
+
+function boolOption(input: CommandInput, name: string): boolean | undefined {
+  const value = input.values[name];
+  if (value === undefined) return undefined;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  throw new UsageError(`--${name} must be true or false, got ${JSON.stringify(value)}`);
 }
 
 /** Validate params with a tool's zod schema, as the MCP server does before calling it. */

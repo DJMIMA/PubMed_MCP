@@ -244,6 +244,24 @@ describe('parsePubmedEfetchXml', () => {
     expect(article.doi).toBe('10.1002/(SICI)1097-0142(19990101)85:1<1::AID-CNCR1>3.0.CO;2-Q');
   });
 
+  it('parses a collective (group) author', () => {
+    const xml = MINIMAL_XML.replace(
+      '</AuthorList>',
+      '<Author><CollectiveName>MDS Study Group</CollectiveName></Author></AuthorList>'
+    );
+
+    const [article] = parsePubmedEfetchXml(xml);
+
+    expect(article.author_count).toBe(2);
+    expect(article.authors[1]).toEqual({
+      last_name: '',
+      fore_name: '',
+      initials: '',
+      collective_name: 'MDS Study Group',
+    });
+    expect(article.authors[0].collective_name).toBeUndefined();
+  });
+
   it('turns NBSP and thin spaces into plain spaces and trims them at the edges', () => {
     const xml = MINIMAL_XML.replace(
       '<Initials>J</Initials>',

@@ -46,6 +46,8 @@ export interface ArticleAuthor {
   last_name: string;
   fore_name: string;
   initials: string;
+  /** Group author (e.g. a study group); the name fields above are empty for it. */
+  collective_name?: string;
   affiliations?: string[];
 }
 
@@ -68,6 +70,8 @@ export interface ArticleMetadata {
   doi?: string;
   journal: ArticleJournal;
   authors: ArticleAuthor[];
+  /** Number of authors PubMed lists, even when `authors` was cut down. */
+  author_count: number;
   publication_date: ArticlePublicationDate;
   keywords: string[];
   mesh_terms: string[];
