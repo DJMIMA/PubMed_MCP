@@ -179,10 +179,12 @@ function parsePubmedArticle(wrapper: any): ArticleMetadata {
       const affiliations = asArray(a?.AffiliationInfo)
         .map((ai: unknown) => extractText((ai as Record<string, unknown>)?.Affiliation))
         .filter(Boolean);
+      const collectiveName = extractText(a?.CollectiveName);
       return {
         last_name: extractText(a?.LastName),
         fore_name: extractText(a?.ForeName),
         initials: extractText(a?.Initials),
+        ...(collectiveName ? { collective_name: collectiveName } : {}),
         ...(affiliations.length > 0 ? { affiliations } : {}),
       };
     }
@@ -232,6 +234,7 @@ function parsePubmedArticle(wrapper: any): ArticleMetadata {
     ...(identifiers.doi ? { doi: identifiers.doi } : {}),
     journal: journalInfo,
     authors,
+    author_count: authors.length,
     publication_date: pubDateParsed,
     keywords,
     mesh_terms,

@@ -29,12 +29,12 @@ If `pubmed --help` fails, the CLI is not installed; use the PubMed MCP tools ins
 | `pubmed fulltext <pmcid>...` | `get_full_text_article` | PMCIDs | 20 |
 | `pubmed copyright <pmid>...` | `get_copyright_status` | PMIDs | 50 |
 
-Options are the MCP parameters in kebab-case: `--max-results`, `--retstart`, `--sort`, `--field`, `--date-from`, `--date-to`, `--datetype`, `--link-type`, `--id-type`. Run `pubmed <command> --help` for details.
+Options are the MCP parameters in kebab-case: `--max-results`, `--retstart`, `--sort`, `--field`, `--date-from`, `--date-to`, `--datetype`, `--link-type`, `--id-type`, `--authors`, `--affiliations`. Run `pubmed <command> --help` for details.
 
 ## Output fields
 
 - search: `.pmids[]`, `.total_count`, `.has_more`, `.query_translation`, `.warnings`, `.errors`
-- metadata: `.articles[]` with `.identifiers.pmid`, `.identifiers.doi`, `.identifiers.pmcid`, `.title`, `.abstract`, `.authors[]` (`.last_name`, `.fore_name`, `.initials`, `.affiliations[]`), `.journal.title`, `.journal.iso_abbreviation`, `.publication_date.year`, `.mesh_terms[]`, `.keywords[]`, `.article_types[]`, `.citation` (`.volume`, `.issue`, `.pages`)
+- metadata: `.articles[]` with `.identifiers.pmid`, `.identifiers.doi`, `.identifiers.pmcid`, `.title`, `.abstract`, `.authors[]` (`.last_name`, `.fore_name`, `.initials`, `.collective_name` for group authors, `.affiliations[]` only with `--affiliations true`), `.author_count`, `.journal.title`, `.journal.iso_abbreviation`, `.publication_date.year`, `.mesh_terms[]`, `.keywords[]`, `.article_types[]`, `.citation` (`.volume`, `.issue`, `.pages`)
 - related: `.linksets[].linksetdbs[].links[]`; `citing_pmc_articles` gives PMC IDs without the `PMC` prefix
 - citation: `.citations[]` with `.key` and `.pmid` (`""` when not found)
 - convert: `.records[]` with `.pmid`, `.pmcid`, `.doi`, `."requested-id"`, `.errmsg`
@@ -51,6 +51,10 @@ jq '{total_count, query_translation, warnings, errors}' search.json
 # Metadata for every hit, listed one line per article
 jq -r '.pmids[]' search.json | pubmed metadata - -o meta.json
 jq -r '.articles[] | [.identifiers.pmid, .publication_date.year, .journal.iso_abbreviation, .title] | @tsv' meta.json
+
+# Smaller records: first and last author only (affiliations are left out unless --affiliations true)
+# (`pubmed metadata --help` lists --authors all|first_last|first|none; .author_count is always the full count)
+jq -r '.pmids[]' search.json | pubmed metadata - --authors first_last -o meta.json
 
 # One abstract
 jq -r --arg p 34265844 '.articles[] | select(.identifiers.pmid == $p) | .abstract' meta.json

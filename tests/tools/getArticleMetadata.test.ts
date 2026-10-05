@@ -105,7 +105,10 @@ describe('getArticleMetadata', () => {
   });
 
   it('parses authors with affiliations', async () => {
-    const result = await getArticleMetadata({ pmids: ['33526711'] }, mockClient);
+    const result = await getArticleMetadata(
+      { pmids: ['33526711'], include_affiliations: true },
+      mockClient
+    );
     const { authors } = result.articles[0];
 
     expect(authors).toHaveLength(2);
@@ -115,6 +118,101 @@ describe('getArticleMetadata', () => {
     expect(authors[1].last_name).toBe('Evans');
     // Second author has no affiliation
     expect(authors[1].affiliations).toBeUndefined();
+  });
+
+  it('reports the author count', async () => {
+    const result = await getArticleMetadata({ pmids: ['33526711'] }, mockClient);
+    expect(result.articles[0].author_count).toBe(2);
+  });
+
+  describe('author options', () => {
+    const lastNames = (authors: { last_name: string }[]) => authors.map((a) => a.last_name);
+
+    beforeEach(() => {
+      mockEfetch.mockResolvedValue(
+        SAMPLE_XML.replace(
+          '</AuthorList>',
+          `<Author><LastName>Kohli</LastName><ForeName>Pushmeet</ForeName><Initials>P</Initials>
+             <AffiliationInfo><Affiliation>DeepMind, London, UK</Affiliation></AffiliationInfo>
+           </Author></AuthorList>`
+        )
+      );
+    });
+
+    it('returns every author without affiliations by default', async () => {
+      const { articles } = await getArticleMetadata({ pmids: ['1'] }, mockClient);
+      expect(lastNames(articles[0].authors)).toEqual(['Jumper', 'Evans', 'Kohli']);
+      expect(JSON.stringify(articles[0].authors)).not.toContain('DeepMind');
+    });
+
+    it('includes affiliations when include_affiliations is true', async () => {
+      const { articles } = await getArticleMetadata(
+        { pmids: ['1'], include_affiliations: true },
+        mockClient
+      );
+      expect(articles[0].authors[0].affiliations).toEqual(['DeepMind, London, UK']);
+      expect(articles[0].authors[2].affiliations).toEqual(['DeepMind, London, UK']);
+    });
+
+    it('keeps the collective name of a group author without its affiliations', async () => {
+      mockEfetch.mockResolvedValue(
+        SAMPLE_XML.replace(
+          '</AuthorList>',
+          `<Author><CollectiveName>AlphaFold Study Group</CollectiveName>
+             <AffiliationInfo><Affiliation>Somewhere</Affiliation></AffiliationInfo>
+           </Author></AuthorList>`
+        )
+      );
+      const { articles } = await getArticleMetadata({ pmids: ['1'], authors: 'first_last' }, mockClient);
+      expect(articles[0].authors[1]).toEqual({
+        last_name: '',
+        fore_name: '',
+        initials: '',
+        collective_name: 'AlphaFold Study Group',
+      });
+    });
+
+    it('returns the first and last author for first_last', async () => {
+      const { articles } = await getArticleMetadata({ pmids: ['1'], authors: 'first_last' }, mockClient);
+      expect(lastNames(articles[0].authors)).toEqual(['Jumper', 'Kohli']);
+      expect(articles[0].author_count).toBe(3);
+    });
+
+    it('returns a single author once for first_last', async () => {
+      mockEfetch.mockResolvedValue(SAMPLE_XML.replace(/<Author ValidYN="Y">\s*<LastName>Evans[\s\S]*?<\/Author>/, ''));
+      const { articles } = await getArticleMetadata({ pmids: ['1'], authors: 'first_last' }, mockClient);
+      expect(lastNames(articles[0].authors)).toEqual(['Jumper']);
+      expect(articles[0].author_count).toBe(1);
+    });
+
+    it('returns only the first author for first', async () => {
+      const { articles } = await getArticleMetadata({ pmids: ['1'], authors: 'first' }, mockClient);
+      expect(lastNames(articles[0].authors)).toEqual(['Jumper']);
+      expect(articles[0].author_count).toBe(3);
+    });
+
+    it('returns no authors for none but keeps the count', async () => {
+      const { articles } = await getArticleMetadata({ pmids: ['1'], authors: 'none' }, mockClient);
+      expect(articles[0].authors).toEqual([]);
+      expect(articles[0].author_count).toBe(3);
+    });
+
+    it('leaves out affiliations by default', async () => {
+      const { articles } = await getArticleMetadata({ pmids: ['1'] }, mockClient);
+      expect(articles[0].authors).toHaveLength(3);
+      expect(articles[0].authors[0]).toEqual({ last_name: 'Jumper', fore_name: 'John', initials: 'J' });
+    });
+
+    it('combines authors and include_affiliations', async () => {
+      const { articles } = await getArticleMetadata(
+        { pmids: ['1'], authors: 'first_last', include_affiliations: true },
+        mockClient
+      );
+      expect(articles[0].authors).toEqual([
+        { last_name: 'Jumper', fore_name: 'John', initials: 'J', affiliations: ['DeepMind, London, UK'] },
+        { last_name: 'Kohli', fore_name: 'Pushmeet', initials: 'P', affiliations: ['DeepMind, London, UK'] },
+      ]);
+    });
   });
 
   it('parses journal, volume, issue, and pages', async () => {

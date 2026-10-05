@@ -79,8 +79,12 @@ export function createServer(client: NcbiClient = new NcbiClient()): McpServer {
   server.tool(
     'get_article_metadata',
     'Retrieve complete metadata for up to 200 PubMed articles by PMID. ' +
-      'Returns title, abstract, authors, affiliations, journal info, ' +
+      'Returns title, abstract, authors, journal info, ' +
       'publication date, MeSH terms, keywords, and article type for each article. ' +
+      'Affiliations are left out unless include_affiliations is true. ' +
+      'Long author lists use a lot of context: set authors ' +
+      '(first_last, first, none) to return fewer; ' +
+      'author_count always gives the full number of authors. ' +
       'PMIDs that PubMed does not return are left out of articles, so compare count ' +
       'with the number of PMIDs requested.',
     getArticleMetadataSchema,
