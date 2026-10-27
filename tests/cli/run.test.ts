@@ -227,9 +227,9 @@ describe('search', () => {
   });
 
   it.each([
-    [['--max-results', '0'], 'invalid --max-results: Number must be greater than or equal to 1'],
+    [['--max-results', '0'], 'invalid --max-results: Too small: expected number to be >=1'],
     [['--max-results', 'ten'], '--max-results must be a whole number, got "ten"'],
-    [['--sort', 'newest'], 'invalid --sort: Invalid enum value'],
+    [['--sort', 'newest'], 'invalid --sort: Invalid option'],
     [['--datetype', 'dp'], 'invalid --datetype'],
   ])('rejects %j before calling NCBI', async (options, message) => {
     const { code, io } = await run(['search', 'cancer', ...options]);
@@ -585,7 +585,7 @@ describe('citation', () => {
     const { code, io } = await run(['citation', '--input', '-'], fakeIo(stdin));
 
     expect(code).toBe(2);
-    expect(io.err).toContain('citation 2: invalid year: Number must be greater than or equal to 1800');
+    expect(io.err).toContain('citation 2: invalid year: Too small: expected number to be >=1800');
     expect(mockClient.ecitmatch).not.toHaveBeenCalled();
   });
 });
