@@ -16,7 +16,8 @@ This file provides guidance for AI assistants (Claude and others) working in thi
 
 ```
 PubMed_MCP/
-├── CLAUDE.md              # This file
+├── CLAUDE.md              # This file (AGENTS.md holds the same guidance for other agents)
+├── .github/workflows/     # ci.yml (typecheck, lint, test, build), audit.yml (npm audit)
 ├── skills/pubmed-cli/SKILL.md  # Agent skill for the pubmed CLI
 ├── Dockerfile             # Cloud Run image (HTTP mode)
 ├── src/
@@ -37,12 +38,12 @@ PubMed_MCP/
 - **Runtime:** Node.js (>=22)
 - **Language:** TypeScript (strict mode)
 - **MCP SDK:** `@modelcontextprotocol/sdk`
+- **Validation:** `zod` (tool argument schemas)
 - **HTTP Client:** `axios`
 - **XML Parsing:** `fast-xml-parser`
 - **HTTP server / auth:** `express`, `jose`
 - **Testing:** `vitest`
 - **Linting:** `eslint` with TypeScript rules
-- **Formatting:** `prettier`
 
 ---
 
@@ -61,22 +62,26 @@ PubMed_MCP/
 MCP tools must be registered with:
 - A unique `name` (snake_case, e.g., `search_articles`)
 - A `description` in plain English that explains what the tool does
-- An `inputSchema` defined using JSON Schema (validated with Zod at runtime)
+- An input schema written as a Zod raw shape (an object of Zod types, not `z.object(...)`)
 - A handler function that returns `{ content: [{ type: "text", text: "..." }] }`
 
 Follow the existing registrations in `src/server.ts`; each tool's schema and handler live in `src/tools/<toolName>.ts`.
 
+The SDK validates arguments against the Zod shape and generates the JSON Schema that `tools/list` returns. After changing a schema or upgrading `zod` or the SDK, compare the `tools/list` output before and after.
+
 ### PubMed / NCBI E-utilities
 
 - Base URL: `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/`
-- Key endpoints:
-  - `esearch.fcgi` — search for article IDs
-  - `efetch.fcgi` — retrieve full records by ID
-  - `esummary.fcgi` — retrieve document summaries by ID
-- Always include `&db=pubmed&retmode=json` (or `xml` where needed)
-- Include `&api_key=<NCBI_API_KEY>` to increase rate limits (10 req/sec vs 3/sec)
-- Respect NCBI rate limits; add delays between bulk requests if not using an API key
-- The NCBI API key should be read from `process.env.NCBI_API_KEY`
+- Endpoints used by `src/pubmed/client.ts`:
+  - `esearch.fcgi` — search PubMed for PMIDs (`retmode=json`)
+  - `efetch.fcgi` — full records as XML: `db=pubmed` for metadata, `db=pmc` for full text and license information
+  - `elink.fcgi` — similar articles, citing PMC articles, and links to Gene, Protein, and Nucleotide records
+  - `ecitmatch.cgi` — PMIDs from citation data (plain-text response)
+- The PMC ID Converter (`https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/`) converts between PMID, PMCID, and DOI
+- Set `db` and `retmode` explicitly on every request
+- `NcbiClient` reads the API key from `process.env.NCBI_API_KEY` and adds `api_key` to requests when it is set
+- `NcbiClient` paces every request: 8 req/sec with an API key (NCBI allows 10; the margin absorbs arrival jitter) and 3 req/sec without. It retries HTTP 429 responses
+- Rate limiting is per client, so send all NCBI requests through one `NcbiClient` (HTTP mode shares one client across its per-request servers)
 
 ### Environment Variables
 
@@ -113,10 +118,12 @@ npm install          # Install dependencies
 npm run build        # Compile TypeScript to dist/
 npm run dev          # Run the server from source with tsx
 npm run cli -- <command> [args]  # Run the pubmed CLI from source
-npm test             # Run test suite
-npm run lint         # Run ESLint
-npm run typecheck    # Run tsc --noEmit
+npm test             # Run the vitest suite in tests/
+npm run lint         # Run ESLint on src/ only
+npm run typecheck    # Run tsc --noEmit on src/ only (tsconfig excludes tests/)
 ```
+
+`npm run lint` and `npm run typecheck` do not cover `tests/`. Lint new test files explicitly, for example `npx eslint tests/tools/newTool.test.ts`.
 
 To run the MCP server locally with Claude Desktop or another MCP client, configure stdio transport.
 
@@ -124,11 +131,19 @@ To run the MCP server locally with Claude Desktop or another MCP client, configu
 
 ## Git Workflow
 
-- **Main branch:** `main` (or `master`)
+- **Main branch:** `main`
 - **Feature branches:** `claude/<description>-<id>` for AI-assisted work
 - Write clear, imperative commit messages: `Add search_pubmed tool`, `Fix XML parsing for missing abstracts`
 - Do not commit `.env` files or API keys
 - Always push to the designated branch; never force-push to `main`
+- Merging to `main` deploys the server to Cloud Run automatically (the trigger is configured in GCP, not in this repository). Verify HTTP mode before merging changes that affect it.
+
+---
+
+## Continuous Integration
+
+- `.github/workflows/ci.yml` runs `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` on every pull request and on pushes to `main`.
+- `.github/workflows/audit.yml` runs `npm audit --omit=dev --audit-level=high` on pull requests, on pushes to `main`, and weekly. A newly published advisory can fail it without any code change; fix the dependencies rather than changing the threshold.
 
 ---
 
@@ -138,6 +153,7 @@ To run the MCP server locally with Claude Desktop or another MCP client, configu
 - Mock NCBI HTTP responses in tests; do not make real network calls in CI
 - Test both success paths and error paths (API errors, malformed XML, missing fields)
 - Aim for coverage on all tool argument validation logic
+- `vitest.config.ts` excludes `.claude/worktrees/`, so `npm test` runs only this checkout's tests, not those of agent worktrees nested inside it
 
 ---
 
@@ -156,5 +172,6 @@ To run the MCP server locally with Claude Desktop or another MCP client, configu
 - Prefer simple, readable implementations over clever abstractions — this is a focused tool server.
 - When adding a new MCP tool, register it in `src/server.ts` and add a corresponding test file under `tests/tools/`.
 - The `pubmed` CLI (`src/cli.ts`, `src/cli/`) runs the same tool functions and prints the same JSON as the MCP server. When adding or changing a tool, update its command in `src/cli/commands.ts`, the tests in `tests/cli/`, and the command table in `skills/pubmed-cli/SKILL.md`.
-- Run `npm run typecheck` and `npm test` before committing any changes.
+- Run `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` (the same checks as CI) before committing any changes.
+- `CLAUDE.md` and `AGENTS.md` hold the same guidance; when you change one, make the same change in the other.
 - When in doubt about PubMed API behavior, cite the NCBI E-utilities documentation.
