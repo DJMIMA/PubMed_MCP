@@ -125,6 +125,24 @@ describe('parsePubmedEfetchXml', () => {
     expect(articles[0].abstract).toBe('We found strong evidence for H2O.');
   });
 
+  // fast-xml-parser 4 parsed "e" followed by digits as a number and returned NaN.
+  it('keeps electronic locators such as e2000673 as text', () => {
+    const xml = MINIMAL_XML
+      .replace(
+        '</ArticleTitle>',
+        '</ArticleTitle>\n        <Pagination><MedlinePgn>e2000673</MedlinePgn></Pagination>'
+      )
+      .replace(
+        '</ArticleIdList>',
+        '  <ArticleId IdType="pii">e3760</ArticleId>\n      </ArticleIdList>'
+      );
+
+    const articles = parsePubmedEfetchXml(xml);
+
+    expect(articles[0].citation.pages).toBe('e2000673');
+    expect(articles[0].identifiers.pii).toBe('e3760');
+  });
+
   it('parses author information', () => {
     const articles = parsePubmedEfetchXml(MINIMAL_XML);
     const author = articles[0].authors[0];
