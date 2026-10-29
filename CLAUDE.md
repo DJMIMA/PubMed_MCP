@@ -8,7 +8,7 @@ This file provides guidance for AI assistants (Claude and others) working in thi
 
 **PubMed_MCP** is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that provides structured access to PubMed, the biomedical literature database maintained by the National Center for Biotechnology Information (NCBI). It enables AI assistants and LLM-based tools to search, retrieve, and reason over scientific publications via the NCBI E-utilities API.
 
-**Status:** Seven MCP tools over stdio and OAuth-protected Streamable HTTP, plus a `pubmed` CLI that runs the same tool functions.
+**Status:** Seven MCP tools over stdio and OAuth-protected Streamable HTTP, plus a `pubmed` CLI that runs the same tool functions. Published to npm as `@djmima/pubmed-mcp` (MIT).
 
 ---
 
@@ -17,7 +17,7 @@ This file provides guidance for AI assistants (Claude and others) working in thi
 ```
 PubMed_MCP/
 ├── CLAUDE.md              # This file (AGENTS.md holds the same guidance for other agents)
-├── .github/workflows/     # ci.yml (typecheck, lint, test, build), audit.yml (npm audit)
+├── .github/workflows/     # ci.yml (typecheck, lint, test, build), audit.yml (npm audit), release.yml (npm publish)
 ├── skills/pubmed-cli/SKILL.md  # Agent skill for the pubmed CLI
 ├── Dockerfile             # Cloud Run image (HTTP mode)
 ├── src/
@@ -144,6 +144,7 @@ To run the MCP server locally with Claude Desktop or another MCP client, configu
 
 - `.github/workflows/ci.yml` runs `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` on every pull request and on pushes to `main`.
 - `.github/workflows/audit.yml` runs `npm audit --omit=dev --audit-level=high` on pull requests, on pushes to `main`, and weekly. A newly published advisory can fail it without any code change; fix the dependencies rather than changing the threshold.
+- `.github/workflows/release.yml` publishes to npm when a GitHub Release is published, using npm trusted publishing (OIDC; no token in the repository). The release tag must be `v` plus the `package.json` version. `prepublishOnly` runs typecheck, lint, tests, and build before publishing. Only `dist/` and `skills/` (plus README and LICENSE) go into the package, as set by `files` in `package.json`.
 
 ---
 

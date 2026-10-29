@@ -65,8 +65,7 @@ MCP ツール自体の実行エラーとは別の情報です。
 
 ## 必要環境
 
-- **Node.js** 18 以上
-- **npm** 8 以上
+- **Node.js** 22 以上（`npx` と `npm` は Node.js に同梱されています）
 - **NCBI API キー**（任意。なくても動作するが、レートリミットが 3 req/s に制限される）
 - **jq**（任意。[CLI](#cli) の出力から必要なフィールドを取り出すのに使う）
 
@@ -74,15 +73,20 @@ MCP ツール自体の実行エラーとは別の情報です。
 
 ## インストール
 
+npm パッケージ [`@djmima/pubmed-mcp`](https://www.npmjs.com/package/@djmima/pubmed-mcp) として公開しています。
+
+- **MCP サーバーとして使う場合**は、インストールは不要です。MCP クライアントの設定に `npx -y @djmima/pubmed-mcp@latest` を書くと、
+  起動時に最新版が自動でダウンロードされます（後述の「[使い方](#使い方)」を参照）。
+- **[CLI](#cli) を使う場合**は、グローバルにインストールします。
+
 ```bash
-git clone https://github.com/DJMIMA/PubMed_MCP.git
-cd PubMed_MCP
-npm install
-npm run build
+npm install -g @djmima/pubmed-mcp
 ```
 
-`dist/` はリポジトリに含まれません。`git pull` でソースを更新したら `npm run build` を再実行し、
-MCP クライアントを再起動してください。起動中のサーバーは再起動するまで古いビルドのまま動きます。
+`pubmed` と `pubmed-mcp` の 2 つのコマンドが登録されます。更新は `npm update -g @djmima/pubmed-mcp`、
+削除は `npm rm -g @djmima/pubmed-mcp` です。
+
+ソースコードを修正して使いたい場合は「[ソースからビルドする](#ソースからビルドする)」を参照してください。
 
 ### NCBI API キーの設定（推奨）
 
@@ -120,8 +124,8 @@ APIキーは、このサーバーを運用する個人または組織が所有�
 {
   "mcpServers": {
     "pubmed-local": {
-      "command": "node",
-      "args": ["/absolute/path/to/PubMed_MCP/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "@djmima/pubmed-mcp@latest"],
       "env": {
         "NCBI_API_KEY": "your_api_key_here"
       }
@@ -131,7 +135,8 @@ APIキーは、このサーバーを運用する個人または組織が所有�
 ```
 
 - 他のサーバーが登録済みの場合は、`mcpServers` の中に `"pubmed-local": { ... }` を並べて追加します（前の項目との間のカンマを忘れずに）。
-- Windows のパスは `"C:/path/to/PubMed_MCP/dist/index.js"` のようにスラッシュ区切りで書くか、`\\` とエスケープしてください。
+- Windows で起動しない場合は、`"command": "cmd"`、`"args": ["/c", "npx", "-y", "@djmima/pubmed-mcp@latest"]` に変えてください。
+- `@latest` を付けると、起動のたびに npm に最新版があるか確認します。版を固定したい場合は `@djmima/pubmed-mcp@1.0.0` のように書きます。
 - サーバー名を `pubmed-local` にしておくと、リモート版（`pubmed-remote`）や同じツール名を持つ他の PubMed コネクタと区別しやすくなります。
 
 設定後、Claude Desktop を完全に終了してから再起動してください。ウィンドウを閉じただけではアプリが常駐したままになることがあります（Windows ではタスクトレイのアイコンから終了できます）。
@@ -146,10 +151,11 @@ APIキーは、このサーバーを運用する個人または組織が所有�
 `claude mcp add` で登録します。`--scope user` を付けるとすべてのプロジェクトで使えます。
 
 ```bash
-claude mcp add --env NCBI_API_KEY=your_api_key_here --transport stdio --scope user pubmed-local -- node /absolute/path/to/PubMed_MCP/dist/index.js
+claude mcp add --env NCBI_API_KEY=your_api_key_here --transport stdio --scope user pubmed-local -- npx -y @djmima/pubmed-mcp@latest
 ```
 
 - `--` より後ろは、サーバーの起動コマンドとしてそのまま渡されます。
+- Windows（WSL ではない環境）では、`--` の後ろを `cmd /c npx -y @djmima/pubmed-mcp@latest` にしてください。
 - `--env` の直後にサーバー名を書くと `KEY=value` の続きとして解釈されてエラーになるため、間に別のオプション（ここでは `--transport stdio`）を挟みます。
 - 登録内容は `~/.claude.json`（user / local スコープ）またはプロジェクト直下の `.mcp.json`（project スコープ）に保存されます。`~/.claude/settings.json` に `mcpServers` を書いても読み込まれません。
 - Claude Desktop の Code タブだけで使う場合は、上記の `claude_desktop_config.json` への登録で読み込まれるため、この手順は不要です。
@@ -164,21 +170,20 @@ Codex のデスクトップアプリ・CLI・IDE 拡張は、同じ設定ファ�
 
 ```toml
 [mcp_servers.pubmed-local]
-command = "node"
-args = ["/absolute/path/to/PubMed_MCP/dist/index.js"]
+command = "npx"
+args = ["-y", "@djmima/pubmed-mcp@latest"]
 
 [mcp_servers.pubmed-local.env]
 NCBI_API_KEY = "your_api_key_here"
 ```
 
-- Windows のパスはシングルクォート（TOML のリテラル文字列）で囲むと、`\` をそのまま書けます（例: `args = ['C:\path\to\PubMed_MCP\dist\index.js']`）。ダブルクォートで囲む場合は `\\` とエスケープしてください。
-- `node` が見つからずに起動しない場合は、`command` に Node.js の絶対パス（例: `'C:\Program Files\nodejs\node.exe'`）を指定します。
+- Windows で起動しない場合は、`command = "cmd"`、`args = ["/c", "npx", "-y", "@djmima/pubmed-mcp@latest"]` に変えてください。
 - Codex は OS の環境変数をそのまま MCP サーバーへ渡しません。API キーは上のように `env` に書くか、`[mcp_servers.pubmed-local]` に `env_vars = ["NCBI_API_KEY"]` を追加して Codex 側の環境変数から転送してください。
 
 CLI からは `codex mcp add` でも登録できます。
 
 ```bash
-codex mcp add pubmed-local --env NCBI_API_KEY=your_api_key_here -- node /absolute/path/to/PubMed_MCP/dist/index.js
+codex mcp add pubmed-local --env NCBI_API_KEY=your_api_key_here -- npx -y @djmima/pubmed-mcp@latest
 ```
 
 設定後は Codex を再起動してください（デスクトップアプリでは **Settings → MCP servers** の **Restart**）。同じ画面の **Add server** から登録することもできます。CLI と IDE 拡張では `/mcp` で接続中のサーバーを確認できます。
@@ -216,6 +221,24 @@ Anthropic API の MCP コネクタは HTTP で公開されたリモートサー�
 デプロイ方法は後述の「[Google Cloud Run へのデプロイ](#google-cloud-run-へのデプロイ)」、アクセストークンの取得方法は「[クライアント別の接続設定](#クライアント別の接続設定)」を参照してください。
 
 ---
+
+### ソースからビルドする
+
+ソースコードを修正して使う場合は、リポジトリをクローンしてビルドします。
+
+```bash
+git clone https://github.com/DJMIMA/PubMed_MCP.git
+cd PubMed_MCP
+npm install
+npm run build
+```
+
+MCP クライアントの設定では、`npx -y @djmima/pubmed-mcp@latest` の代わりに `node /absolute/path/to/PubMed_MCP/dist/index.js` を指定します
+（Windows のパスは `C:/path/to/PubMed_MCP/dist/index.js` のようにスラッシュ区切りで書きます）。
+CLI として使う場合は、続けて `npm link` を実行すると `pubmed` と `pubmed-mcp` コマンドが登録されます（解除は `npm rm -g @djmima/pubmed-mcp`）。
+
+`dist/` はリポジトリに含まれません。`git pull` でソースを更新したら `npm run build` を再実行し、
+MCP クライアントを再起動してください。起動中のサーバーは再起動するまで古いビルドのまま動きます。
 
 ### ローカル開発
 
@@ -257,17 +280,17 @@ PMID・年・タイトルだけを取り出すと 3.2 KB（約 1/34）になり�
 ### インストール
 
 ```bash
-npm install
-npm run build
-npm link
+npm install -g @djmima/pubmed-mcp
 ```
 
-`npm link` で `pubmed` コマンドが登録されます（`pubmed-mcp` コマンドも同時に登録されます）。`pubmed --help` が表示されれば完了です。
-コマンドはこのリポジトリの `dist/` を実行するため、`git pull` の後は `npm run build` を再実行してください。
-登録を解除するには `npm rm -g pubmed-mcp` を実行します。
+`pubmed --help` が表示されれば完了です。
 
-NCBI API キーは環境変数 `NCBI_API_KEY` から読み込みます。環境変数がない場合はこのリポジトリ直下の `.env`
-（`cp .env.example .env` で作成）を読み込むため、どのディレクトリから実行してもキーが使われます。
+NCBI API キーは環境変数 `NCBI_API_KEY` から読み込みます。シェルの設定ファイル（`~/.bashrc`、`~/.zshrc` など）に
+`export NCBI_API_KEY=your_api_key_here` を書くか、Windows では `setx NCBI_API_KEY your_api_key_here` を一度実行してから
+ターミナルを開き直してください。
+
+[ソースからビルドして](#ソースからビルドする) `npm link` で登録した場合は、環境変数がなければリポジトリ直下の `.env`
+（`cp .env.example .env` で作成）も読み込むため、どのディレクトリから実行してもキーが使われます。
 
 ### コマンド
 
@@ -311,13 +334,18 @@ jq のレシピをエージェントに教える Skill です。ユーザー単�
 Claude Code（Claude Desktop の Code タブを含む）は `~/.claude/skills/`、Codex は `~/.agents/skills/` から読み込みます
 （Windows では `~` が `%USERPROFILE%` になります）。
 
+Skill は npm パッケージにも含まれているので、`npm install -g` でインストールした場合は次のコマンドでコピーできます
+（Windows では Git Bash で実行してください）。
+
 ```bash
+SKILL_DIR="$(npm root -g)/@djmima/pubmed-mcp/skills/pubmed-cli"
 mkdir -p ~/.claude/skills ~/.agents/skills
-cp -r skills/pubmed-cli ~/.claude/skills/
-cp -r skills/pubmed-cli ~/.agents/skills/
+cp -r "$SKILL_DIR" ~/.claude/skills/
+cp -r "$SKILL_DIR" ~/.agents/skills/
 ```
 
-Skill を更新したときは、もう一度コピーしてください。
+ソースからビルドした場合は、リポジトリ直下で `SKILL_DIR=skills/pubmed-cli` としてから同じコマンドを実行します。
+パッケージや Skill を更新したときは、もう一度コピーしてください。
 
 Claude Code でコマンドを実行するたびに許可を求められないようにするには、`~/.claude/settings.json` の `permissions.allow` に
 `pubmed` と `jq` を追加します（既に設定がある場合は配列に追記してください）。
@@ -708,6 +736,21 @@ npm test           # テストスイートを実行
 npm run typecheck  # 型チェックのみ（コンパイルなし）
 npm run lint       # ESLint を実行
 ```
+
+### npm へのリリース（メンテナー向け）
+
+GitHub で Release を公開すると、[`.github/workflows/release.yml`](.github/workflows/release.yml) が npm に公開します。
+npm の [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)（OIDC）を使うため、npm のトークンはリポジトリに保存しません。
+
+1. `npm version patch`（または `minor` / `major`）で `package.json` のバージョンを上げ、PR を作って main にマージする
+2. GitHub で `v<バージョン>`（例: `v1.0.1`）のタグを付けた Release を公開する
+3. ワークフローがタグと `package.json` のバージョンが一致するか確かめ、型チェック・lint・テスト・ビルドを通してから公開する
+
+初回だけは手動で公開します。Trusted Publishing はパッケージが npm に存在しないと設定できないためです。
+
+1. 2FA を有効にした npm アカウントで `npm login` し、main の最新を `npm publish` で公開する
+2. npmjs.com のパッケージ設定 → **Trusted Publisher** で GitHub Actions を選び、リポジトリ `DJMIMA/PubMed_MCP`、ワークフロー `release.yml` を登録する
+3. 同じ設定画面の **Publishing access** で、トークンによる公開を禁止する設定にする
 
 ---
 

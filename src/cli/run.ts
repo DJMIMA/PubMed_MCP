@@ -174,7 +174,7 @@ with "-". Long lists are split into batches and sent one at a time.
 
 Environment:
   NCBI_API_KEY  NCBI API key; raises the rate limit from 3 to 8 requests/s.
-                Also read from the .env file in the PubMed_MCP directory.
+                In a source checkout, also read from its .env file.
 
 Exit status: 0 on success, 1 when NCBI or a file operation fails, 2 on
 invalid usage.
