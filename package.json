@@ -30,7 +30,8 @@
   },
   "files": [
     "dist",
-    "skills"
+    "skills",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsc",

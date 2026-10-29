@@ -19,6 +19,7 @@ PubMed_MCP/
 ├── AGENTS.md              # This file (CLAUDE.md holds the same guidance for Claude)
 ├── .github/workflows/     # ci.yml (typecheck, lint, test, build), audit.yml (npm audit), release.yml (npm publish)
 ├── skills/pubmed-cli/SKILL.md  # Agent skill for the pubmed CLI
+├── CHANGELOG.md           # Release notes (Japanese, Keep a Changelog)
 ├── Dockerfile             # Cloud Run image (HTTP mode)
 ├── src/
 │   ├── index.ts           # Entrypoint: stdio, or HTTP when PORT is set
@@ -175,4 +176,5 @@ To run the MCP server locally with Codex Desktop or another MCP client, configur
 - The `pubmed` CLI (`src/cli.ts`, `src/cli/`) runs the same tool functions and prints the same JSON as the MCP server. When adding or changing a tool, update its command in `src/cli/commands.ts`, the tests in `tests/cli/`, and the command table in `skills/pubmed-cli/SKILL.md`.
 - Run `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` (the same checks as CI) before committing any changes.
 - `CLAUDE.md` and `AGENTS.md` hold the same guidance; when you change one, make the same change in the other.
+- Add user-visible changes to the `[Unreleased]` section of `CHANGELOG.md` (in Japanese, Keep a Changelog format) in the same PR. Releases follow the steps in the README section "npm へのリリース".
 - When in doubt about PubMed API behavior, cite the NCBI E-utilities documentation.
