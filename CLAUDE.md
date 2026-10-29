@@ -17,7 +17,7 @@ This file provides guidance for AI assistants (Claude and others) working in thi
 ```
 PubMed_MCP/
 ├── CLAUDE.md              # This file (AGENTS.md holds the same guidance for other agents)
-├── .github/workflows/     # ci.yml (typecheck, lint, test, build), audit.yml (npm audit), release.yml (npm publish)
+├── .github/workflows/     # ci.yml (typecheck, lint, test, build), audit.yml (npm audit), release.yml (npm stage publish)
 ├── skills/pubmed-cli/SKILL.md  # Agent skill for the pubmed CLI
 ├── CHANGELOG.md           # Release notes (Japanese, Keep a Changelog)
 ├── Dockerfile             # Cloud Run image (HTTP mode)
@@ -145,7 +145,7 @@ To run the MCP server locally with Claude Desktop or another MCP client, configu
 
 - `.github/workflows/ci.yml` runs `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` on every pull request and on pushes to `main`.
 - `.github/workflows/audit.yml` runs `npm audit --omit=dev --audit-level=high` on pull requests, on pushes to `main`, and weekly. A newly published advisory can fail it without any code change; fix the dependencies rather than changing the threshold.
-- `.github/workflows/release.yml` publishes to npm when a GitHub Release is published, using npm trusted publishing (OIDC; no token in the repository). The release tag must be `v` plus the `package.json` version, and the workflow skips publishing when that version is already on npm. `prepublishOnly` runs typecheck, lint, tests, and build before publishing. Only `dist/` and `skills/` (plus README and LICENSE) go into the package, as set by `files` in `package.json`.
+- `.github/workflows/release.yml` stages a publish to npm when a GitHub Release is published, using npm trusted publishing (OIDC; no token in the repository). The version goes live only after a maintainer approves it on npmjs.com with 2FA; the trusted publisher allows `npm stage publish` only. The release tag must be `v` plus the `package.json` version, and the workflow skips publishing when that version is already on npm. The workflow runs typecheck, lint, tests, and build itself before staging (`prepublishOnly` also runs them for a manual `npm publish`). Only `dist/` and `skills/` (plus README and LICENSE) go into the package, as set by `files` in `package.json`.
 
 ---
 
