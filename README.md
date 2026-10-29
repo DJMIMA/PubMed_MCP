@@ -738,3 +738,13 @@ npm run lint       # ESLint を実行
 - [PubMed 検索ヘルプ](https://pubmed.ncbi.nlm.nih.gov/help/)
 - [Cloud Run ドキュメント](https://cloud.google.com/run/docs)
 - [Secret Manager ドキュメント](https://cloud.google.com/secret-manager/docs)
+
+---
+
+## ライセンス
+
+このリポジトリのソースコードは [MIT License](LICENSE) で公開しています。
+
+- このプロジェクトは NCBI / NLM（米国国立医学図書館）とは関係のない非公式のツールです。
+- PubMed / PMC へのアクセスには NCBI の E-utilities を使います。利用時は [NCBI の利用ポリシー](https://www.ncbi.nlm.nih.gov/home/about/policies/) と [E-utilities の利用ガイドライン](https://www.ncbi.nlm.nih.gov/books/NBK25497/) に従ってください。
+- MIT License が適用されるのはこのソフトウェアのコードだけです。取得した抄録や全文の著作権は各著者・出版社に帰属します。論文ごとのライセンスは `get_copyright_status` で確認できます。

@@ -2,6 +2,8 @@
   "name": "pubmed-mcp",
   "version": "1.0.0",
   "description": "MCP server providing access to PubMed biomedical literature and citations",
+  "license": "MIT",
+  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "bin": {
