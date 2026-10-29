@@ -145,7 +145,7 @@ To run the MCP server locally with Claude Desktop or another MCP client, configu
 
 - `.github/workflows/ci.yml` runs `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` on every pull request and on pushes to `main`.
 - `.github/workflows/audit.yml` runs `npm audit --omit=dev --audit-level=high` on pull requests, on pushes to `main`, and weekly. A newly published advisory can fail it without any code change; fix the dependencies rather than changing the threshold.
-- `.github/workflows/release.yml` publishes to npm when a GitHub Release is published, using npm trusted publishing (OIDC; no token in the repository). The release tag must be `v` plus the `package.json` version. `prepublishOnly` runs typecheck, lint, tests, and build before publishing. Only `dist/` and `skills/` (plus README and LICENSE) go into the package, as set by `files` in `package.json`.
+- `.github/workflows/release.yml` publishes to npm when a GitHub Release is published, using npm trusted publishing (OIDC; no token in the repository). The release tag must be `v` plus the `package.json` version, and the workflow skips publishing when that version is already on npm. `prepublishOnly` runs typecheck, lint, tests, and build before publishing. Only `dist/` and `skills/` (plus README and LICENSE) go into the package, as set by `files` in `package.json`.
 
 ---
 
