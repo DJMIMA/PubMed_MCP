@@ -1,8 +1,10 @@
 name: Release
 
-# Publishes to npm when a GitHub Release is published. Uses npm trusted
-# publishing (OIDC), so no npm token is stored in the repository; the trusted
-# publisher for @djmima/pubmed-mcp must point at this workflow file.
+# Stages a publish to npm when a GitHub Release is published. A maintainer then
+# approves it on npmjs.com (Staged Packages) with 2FA before it goes live, so a
+# compromised workflow cannot publish on its own. Uses npm trusted publishing
+# (OIDC), so no npm token is stored in the repository; the trusted publisher
+# for @djmima/pubmed-mcp must point at this workflow file.
 
 on:
   release:
@@ -21,8 +23,8 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-      # Trusted publishing needs npm 11.5.1 or later.
-      - run: npm install -g npm@11
+      # npm stage publish needs npm 11.15.0 or later.
+      - run: npm install -g npm@^11.15.0
       - name: Check that the tag matches package.json
         run: |
           version=$(node -p 'require("./package.json").version')
@@ -40,8 +42,15 @@ jobs:
             echo "$spec is already on npm; skipping publish"
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
-      - run: npm ci
+      # npm documents prepublishOnly for npm publish only, so run the checks
+      # and build here rather than relying on it.
+      - name: Install, check, and build
         if: steps.published.outputs.skip != 'true'
-      # prepublishOnly runs typecheck, lint, tests, and build.
-      - run: npm publish
+        run: |
+          npm ci
+          npm run typecheck
+          npm run lint
+          npm test
+          npm run build
+      - run: npm stage publish
         if: steps.published.outputs.skip != 'true'

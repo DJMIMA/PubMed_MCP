@@ -739,7 +739,8 @@ npm run lint       # ESLint を実行
 
 ### npm へのリリース（メンテナー向け）
 
-GitHub で Release を公開すると、[`.github/workflows/release.yml`](.github/workflows/release.yml) が npm に公開します。
+GitHub で Release を公開すると、[`.github/workflows/release.yml`](.github/workflows/release.yml) が npm に公開を申請します（[staged publishing](https://docs.npmjs.com/staged-publishing/)）。
+メンテナーが npmjs.com で 2FA を使って承認するまで、新しいバージョンは公開されません。ワークフローや依存パッケージが乗っ取られても、それだけでは公開できないようにするためです。
 npm の [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)（OIDC）を使うため、npm のトークンはリポジトリに保存しません。
 
 変更を加える PR では、[`CHANGELOG.md`](CHANGELOG.md) の `[Unreleased]` に内容を追記しておきます。リリースの手順は次のとおりです。
@@ -748,18 +749,18 @@ npm の [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)（OIDC�
    （タグは手順 3 で GitHub が付けるため、ここでは付けません）
 2. `CHANGELOG.md` の `[Unreleased]` の内容を新しいバージョンの見出し（例: `## [1.0.1] - 2026-11-01`）の下に移し、末尾の比較リンクを更新して、PR を作って main にマージする
 3. GitHub で、main を対象に `v<バージョン>`（例: `v1.0.1`）のタグを付けた Release を公開する。リリースノートには `CHANGELOG.md` の該当部分を貼る
-4. ワークフローがタグと `package.json` のバージョンが一致するか確かめ、型チェック・lint・テスト・ビルドを通してから公開する
+4. ワークフローがタグと `package.json` のバージョンが一致するか確かめ、型チェック・lint・テスト・ビルドを通してから公開を申請する
+5. npmjs.com のパッケージページの **Staged Packages** タブで内容を確認し、**Approve** を押す（2FA が必要）。CLI では `npm stage approve <stage-id>` でも承認できる
 
 バージョンの上げ方の目安は、不具合の修正やドキュメントの変更が `patch`、ツールやオプションの追加が `minor`、
 ツール名・引数・出力の形を変えて既存の使い方が動かなくなる変更が `major` です。
 
-公開が保留（staged）になった場合は、npmjs.com の **Staged Packages** タブで内容を確認して **Approve** を押すと公開されます。
-
 初回だけは手動で公開します。Trusted Publishing はパッケージが npm に存在しないと設定できないためです。
 
-1. 2FA を有効にした npm アカウントで `npm login` し、main の最新を `npm publish` で公開する（保留になった場合は上記のとおり承認する）
-2. npmjs.com のパッケージ設定 → **Trusted Publisher** で GitHub Actions を選び、リポジトリ `DJMIMA/PubMed_MCP`、ワークフロー `release.yml` を登録する
-3. 同じ設定画面の **Publishing access** で、トークンによる公開を禁止する設定にする
+1. 2FA を有効にした npm アカウントで `npm login` し、main の最新を `npm publish` で公開する（保留になった場合は上記の手順 5 のとおり承認する）
+2. npmjs.com のパッケージ設定 → **Trusted Publisher** で GitHub Actions を選び、リポジトリ `DJMIMA/PubMed_MCP`、ワークフロー `release.yml` を登録する。
+   **Allowed actions** は `npm stage publish`（常に許可）だけにし、`npm publish` と `npm dist-tag` は許可しない
+3. 同じ設定画面の **Publishing access** で **Require two-factor authentication and disallow tokens** を選ぶ
 
 ---
 
