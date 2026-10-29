@@ -8,8 +8,9 @@
  *
  * Environment variables:
  *   NCBI_API_KEY — NCBI API key; raises rate limit from 3 → 8 req/s.
- *                  Falls back to the .env file in the package root, so the
- *                  key is found whichever directory the command runs in.
+ *                  Falls back to the .env file in the package root, so in a
+ *                  source checkout the key is found whichever directory the
+ *                  command runs in.
  */
 
 import { readFile, writeFile } from 'node:fs/promises';

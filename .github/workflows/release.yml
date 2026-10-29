@@ -1,0 +1,35 @@
+name: Release
+
+# Publishes to npm when a GitHub Release is published. Uses npm trusted
+# publishing (OIDC), so no npm token is stored in the repository; the trusted
+# publisher for @djmima/pubmed-mcp must point at this workflow file.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5.1 or later.
+      - run: npm install -g npm@11
+      - name: Check that the tag matches package.json
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version v$version" >&2
+            exit 1
+          fi
+      - run: npm ci
+      # prepublishOnly runs typecheck, lint, tests, and build.
+      - run: npm publish
