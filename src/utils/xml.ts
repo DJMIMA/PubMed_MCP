@@ -406,7 +406,8 @@ function extractPmcBackText(back: any): string {
   const parts: string[] = [];
 
   const refLists = findNodesByKey(back, 'ref-list');
-  for (const refList of refLists) {
+  for (const node of refLists) {
+    const refList = node as Record<string, unknown>;
     const title = extractText(refList?.title);
     if (title) parts.push(title);
     const refs = asArray(refList?.ref);
@@ -574,7 +575,7 @@ export function cleanPmcText(text: string): string {
     .trim();
 }
 
-function findNodesByKey(node: unknown, key: string): any[] {
+function findNodesByKey(node: unknown, key: string): unknown[] {
   if (!node || typeof node !== 'object') return [];
 
   if (Array.isArray(node)) {
