@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import axios from 'axios';
-import { NcbiClient, NcbiApiError, NcbiNetworkError } from '../../src/pubmed/client.js';
+import { NcbiClient, NcbiApiError } from '../../src/pubmed/client.js';
 
 vi.mock('axios');
 
@@ -204,7 +204,7 @@ describe('NcbiClient', () => {
           format: 'json',
           idtype: 'pmid',
           ids: ['33526711'],
-          email: 'pubmed-mcp@example.com',
+          email: 'pubmed-mcp.github.ointment121@simplelogin.com',
           tool: 'pubmed-mcp',
           echo: 'api_key=test-api-key&ids=33526711&format=json',
           versions: 'no',
@@ -231,6 +231,31 @@ describe('NcbiClient', () => {
   });
 
   // ── HTTPS agent ───────────────────────────────────────────────────────────
+
+  describe('tool and email', () => {
+    it('sends the registered tool name and developer email to E-utilities', async () => {
+      mockedAxios.get = vi.fn().mockResolvedValue({ data: '<xml/>' });
+
+      await client.efetch({ db: 'pubmed', id: '1' });
+
+      const callParams = mockedAxios.get.mock.calls[0][1].params;
+      expect(callParams.tool).toBe('pubmed-mcp');
+      expect(callParams.email).toBe('pubmed-mcp.github.ointment121@simplelogin.com');
+    });
+
+    it('sends the same tool and email to the PMC ID Converter', async () => {
+      mockedAxios.get = vi.fn().mockResolvedValue({
+        data: { status: 'ok', request: { echo: '' }, records: [] },
+      });
+
+      await client.idConvert({ ids: ['1'] });
+
+      const callParams = mockedAxios.get.mock.calls[0][1].params;
+      expect(callParams.tool).toBe('pubmed-mcp');
+      expect(callParams.email).toBe('pubmed-mcp.github.ointment121@simplelogin.com');
+      expect(callParams.api_key).toBe('test-api-key');
+    });
+  });
 
   describe('https agent', () => {
     it('sends every request through a keep-alive agent that offers ALPN http/1.1', async () => {

@@ -5,6 +5,13 @@
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-01
+
+### 変更
+
+- NCBI へのリクエストに付ける連絡先（`email` パラメータ）を、ダミーの `pubmed-mcp@example.com` から開発者の転送用アドレスに変更しました。NCBI の E-utilities 利用ガイドラインは、`email` に利用者ではなく開発者のアドレスを使うよう求めています。
+- README の「ライセンス」の節で、NCBI の免責事項・著作権表示へのリンクをはっきり示しました。
+
 ## [1.0.0] - 2026-10-29
 
 npm パッケージ [`@djmima/pubmed-mcp`](https://www.npmjs.com/package/@djmima/pubmed-mcp) として最初に公開した版です。
@@ -16,5 +23,6 @@ npm パッケージ [`@djmima/pubmed-mcp`](https://www.npmjs.com/package/@djmima
 - 同じツールをシェルから実行する `pubmed` CLI と、エージェント向けの Skill（`skills/pubmed-cli`）
 - MIT License
 
-[Unreleased]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/DJMIMA/PubMed_MCP/releases/tag/v1.0.0

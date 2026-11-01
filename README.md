@@ -799,5 +799,6 @@ npm の [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)（OIDC�
 このリポジトリのソースコードは [MIT License](LICENSE) で公開しています。
 
 - このプロジェクトは NCBI / NLM（米国国立医学図書館）とは関係のない非公式のツールです。
-- PubMed / PMC へのアクセスには NCBI の E-utilities を使います。利用時は [NCBI の利用ポリシー](https://www.ncbi.nlm.nih.gov/home/about/policies/) と [E-utilities の利用ガイドライン](https://www.ncbi.nlm.nih.gov/books/NBK25497/) に従ってください。
+- PubMed / PMC へのアクセスには NCBI の E-utilities を使います。利用時は [NCBI の免責事項・著作権表示を含む利用ポリシー](https://www.ncbi.nlm.nih.gov/home/about/policies/)（NCBI Disclaimer and Copyright notice）と [E-utilities の利用ガイドライン](https://www.ncbi.nlm.nih.gov/books/NBK25497/) に従ってください。
+- ガイドラインに従い、NCBI へのリクエストにはこのソフトウェアの名前（`tool=pubmed-mcp`）と開発者の連絡先（`email`）を付けています。このコードを改変して別のソフトウェアとして配布する場合は、`src/pubmed/client.ts` の `TOOL_NAME` と `TOOL_EMAIL` を自分の値に変えてください。
 - MIT License が適用されるのはこのソフトウェアのコードだけです。取得した抄録や全文の著作権は各著者・出版社に帰属します。論文ごとのライセンスは `get_copyright_status` で確認できます。
