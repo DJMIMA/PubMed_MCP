@@ -28,7 +28,13 @@ const HTTPS_AGENT = new https.Agent({
 });
 
 const TOOL_NAME = 'pubmed-mcp';
-const TOOL_EMAIL = 'pubmed-mcp@example.com';
+/**
+ * NCBI requires `email` to be the software developer's address, not an end
+ * user's, and registered with NCBI together with `tool`. A forwarding alias,
+ * so the maintainer's own address stays private.
+ * https://www.ncbi.nlm.nih.gov/books/NBK25497/
+ */
+const TOOL_EMAIL = 'pubmed-mcp.github.ointment121@simplelogin.com';
 
 // ─── Rate limiter ────────────────────────────────────────────────────────────
 
@@ -269,9 +275,7 @@ export class NcbiClient {
       axios.get(PMC_ID_CONVERTER_URL, {
         httpsAgent: HTTPS_AGENT,
         params: {
-          tool: TOOL_NAME,
-          email: TOOL_EMAIL,
-          ...(this.apiKey ? { api_key: this.apiKey } : {}),
+          ...this.commonParams(),
           format: 'json',
           ids: params.ids.join(','),
           idtype: params.idtype ?? 'pmid',

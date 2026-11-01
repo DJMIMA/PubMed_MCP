@@ -81,6 +81,7 @@ The SDK validates arguments against the Zod shape and generates the JSON Schema 
 - The PMC ID Converter (`https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/`) converts between PMID, PMCID, and DOI
 - Set `db` and `retmode` explicitly on every request
 - `NcbiClient` reads the API key from `process.env.NCBI_API_KEY` and adds `api_key` to requests when it is set
+- Every request sends `tool=pubmed-mcp` and `email` (`TOOL_NAME` and `TOOL_EMAIL` in `src/pubmed/client.ts`). NCBI requires `email` to be the developer's address, not an end user's, so it is a constant, not an environment variable. It is the maintainer's forwarding alias, registered with NCBI together with `tool`; never replace it with a personal address
 - `NcbiClient` paces every request: 8 req/sec with an API key (NCBI allows 10; the margin absorbs arrival jitter) and 3 req/sec without. It retries HTTP 429 responses
 - Rate limiting is per client, so send all NCBI requests through one `NcbiClient` (HTTP mode shares one client across its per-request servers)
 
