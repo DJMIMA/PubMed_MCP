@@ -5,6 +5,8 @@
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-03
+
 ### 変更
 
 - README を英語にしました。日本語版は `README_ja.md` に移し、両方の冒頭に npm のバージョン・パッケージサイズ・ライセンス・Node.js のバージョン・CI のバッジと、言語の切り替えリンクを付けました。
@@ -27,6 +29,7 @@ npm パッケージ [`@djmima/pubmed-mcp`](https://www.npmjs.com/package/@djmima
 - 同じツールをシェルから実行する `pubmed` CLI と、エージェント向けの Skill（`skills/pubmed-cli`）
 - MIT License
 
-[Unreleased]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/DJMIMA/PubMed_MCP/releases/tag/v1.0.0
