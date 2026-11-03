@@ -1,44 +1,67 @@
-# PubMed MCP Server
+<h1 align="center">PubMed MCP</h1>
 
-An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that gives Claude and other LLM clients structured access to [PubMed](https://pubmed.ncbi.nlm.nih.gov/) and [PubMed Central (PMC)](https://www.ncbi.nlm.nih.gov/pmc/) via the NCBI E-utilities API.
+<p align="center"><strong>Search and read the biomedical literature from your AI assistant.</strong></p>
+
+<p align="center">PubMed and PubMed Central for Claude, Codex, and the shell.</p>
+
+<p align="center">
+  <a href="#tools">Tools</a> ·
+  <a href="#installation"><strong>Install</strong></a> ·
+  <a href="#usage">Usage</a> ·
+  <a href="#cli">CLI</a> ·
+  <a href="#deploying-to-google-cloud-run">Deploy</a> ·
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/@djmima/pubmed-mcp"><img alt="npm version" src="https://img.shields.io/npm/v/@djmima/pubmed-mcp?label=npm&color=cb3837"></a>
+  <a href="https://packagephobia.com/result?p=@djmima/pubmed-mcp"><img alt="npm unpacked size" src="https://img.shields.io/npm/unpacked-size/@djmima/pubmed-mcp"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
+  <a href="https://nodejs.org/"><img alt="Node.js version" src="https://img.shields.io/node/v/@djmima/pubmed-mcp"></a>
+  <a href="https://github.com/DJMIMA/PubMed_MCP/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/DJMIMA/PubMed_MCP/actions/workflows/ci.yml/badge.svg"></a>
+</p>
+
+<p align="center"><strong>English</strong> · <a href="README_ja.md">日本語</a></p>
+
+**Free, open source, and runs on your own machine.** An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that gives Claude and other LLM clients structured access to [PubMed](https://pubmed.ncbi.nlm.nih.gov/) and [PubMed Central (PMC)](https://www.ncbi.nlm.nih.gov/pmc/) via the NCBI E-utilities API. No account needed; an NCBI API key is optional.
 
 ## Tools
 
-| Tool | 説明 |
-|------|------|
-| `search_articles` | PubMed構文またはキーワードで文献を検索。ATM診断・フィールド制限・日付フィルタ・ソート・ページネーション対応 |
-| `get_article_metadata` | PMIDを指定してタイトル・抄録・著者・MeSH語・キーワードなどを取得 |
-| `find_related_articles` | ELinkを使って関連文献や他DBへのリンクを検索 |
-| `lookup_article_by_citation` | 雑誌名・年・巻・筆頭著者などの引用情報からPMIDを逆引き |
-| `convert_article_ids` | PMID・PMCID・DOI を相互変換 |
-| `get_full_text_article` | PMC Open Access記事の本文全文をプレーンテキストで取得 |
-| `get_copyright_status` | 全文取得の可否（`has_full_text`）・ライセンス・著作権表示・OAステータスを確認。PMCのEFetchメタデータを使用（旧PMC OA Web Serviceは2026-08-25に廃止） |
+| Tool | Description |
+|------|-------------|
+| `search_articles` | Search PubMed with PubMed syntax or keywords. Supports ATM diagnostics, field restriction, date filters, sorting, and pagination |
+| `get_article_metadata` | Get the title, abstract, authors, MeSH terms, keywords, and more for given PMIDs |
+| `find_related_articles` | Find similar articles and links to other NCBI databases with ELink |
+| `lookup_article_by_citation` | Look up PMIDs from citation data such as journal, year, volume, and first author |
+| `convert_article_ids` | Convert between PMID, PMCID, and DOI |
+| `get_full_text_article` | Get the full body text of PMC Open Access articles as plain text |
+| `get_copyright_status` | Check whether full text is available (`has_full_text`), the license, the copyright statement, and the OA status. Uses PMC EFetch metadata (the old PMC OA Web Service was retired on 2026-08-25) |
 
-同じツールは、シェルから `pubmed` コマンドとしても実行できます（「[CLI](#cli)」を参照）。
+The same tools are also available from the shell as the `pubmed` command (see [CLI](#cli)).
 
 ---
 
-## `search_articles` の ATM 診断とフィールド制限
+## ATM diagnostics and field restriction in `search_articles`
 
-PubMed はタグのない検索語に Automatic Term Mapping（ATM）を適用します。ATM は MeSH、
-雑誌名、著者名などへ検索語を展開するため、意図しない変換や、引用句が句インデックスに
-存在しないことによる検索のフォールバックが起こる場合があります。
+PubMed applies Automatic Term Mapping (ATM) to untagged search terms. ATM expands terms to MeSH,
+journal names, author names, and so on, which can cause unintended translations, or a fallback
+search when a quoted phrase is not in the phrase index.
 
-`search_articles` は次の任意の `field` 値を受け取り、クエリ内のタグなし語をすべてその
-フィールドへ制限します。
+`search_articles` accepts an optional `field` value and restricts every untagged term in the query
+to that field:
 
 - `title`
-- `tiab`（Title/Abstract）
+- `tiab` (Title/Abstract)
 - `mesh`
 - `author`
 - `journal`
 - `affiliation`
 
-クエリ内に明示的なフィールドタグがある語では、そのタグが `field` より優先されます。
-`field` を省略した場合の検索動作は従来どおりです。`all` は ATM を無効化しないため、
-公開パラメータには含めていません。
+Terms with an explicit field tag in the query keep their tag, which takes precedence over `field`.
+Without `field`, search behaves as before. `all` is not offered as a value, because it does not
+turn off ATM.
 
-レスポンスには、NCBI ESearch の診断を正規化した次のフィールドが常に含まれます。
+The response always includes the following fields, normalized from the NCBI ESearch diagnostics:
 
 ```json
 {
@@ -54,68 +77,68 @@ PubMed はタグのない検索語に Automatic Term Mapping（ATM）を適用�
 }
 ```
 
-この `errors` は NCBI ESearch が返す検索語・フィールドの診断であり、通信エラーや
-MCP ツール自体の実行エラーとは別の情報です。
-これらのキーは診断がない場合も空配列として返ります。低件数や0件を「文献なし」と判断する
-前に、`query_translation`、`warnings`、`errors` を確認してください。複数語を同一フィールドで
-確実に検索する場合は各語へタグを付け、引用句が句インデックスにない場合の隣接検索には
-`[ti:~0]` または `[tiab:~0]` を使用できます。
+These `errors` are NCBI ESearch diagnostics about search terms and fields, not network errors or
+errors from the MCP tool itself.
+The keys are present as empty arrays even when there are no diagnostics. Before concluding from a
+low or zero count that no literature exists, check `query_translation`, `warnings`, and `errors`.
+To search several terms reliably in the same field, tag each term. For proximity searching when a
+quoted phrase is not in the phrase index, use `[ti:~0]` or `[tiab:~0]`.
 
 ---
 
-## 必要環境
+## Requirements
 
-- **Node.js** 22 以上（`npx` と `npm` は Node.js に同梱されています）
-- **NCBI API キー**（任意。なくても動作するが、レートリミットが 3 req/s に制限される）
-- **jq**（任意。[CLI](#cli) の出力から必要なフィールドを取り出すのに使う）
+- **Node.js** 22 or later (`npx` and `npm` come with Node.js)
+- **NCBI API key** (optional; without one the server works, but is limited to 3 req/s)
+- **jq** (optional; used to extract the fields you need from [CLI](#cli) output)
 
 ---
 
-## インストール
+## Installation
 
-npm パッケージ [`@djmima/pubmed-mcp`](https://www.npmjs.com/package/@djmima/pubmed-mcp) として公開しています。
+The server is published on npm as [`@djmima/pubmed-mcp`](https://www.npmjs.com/package/@djmima/pubmed-mcp).
 
-- **MCP サーバーとして使う場合**は、インストールは不要です。MCP クライアントの設定に `npx -y @djmima/pubmed-mcp@latest` を書くと、
-  起動時に最新版が自動でダウンロードされます（後述の「[使い方](#使い方)」を参照）。
-- **[CLI](#cli) を使う場合**は、グローバルにインストールします。
+- **To use it as an MCP server**, you don't need to install anything. Put `npx -y @djmima/pubmed-mcp@latest` in your MCP client's configuration,
+  and the latest version is downloaded automatically at startup (see [Usage](#usage) below).
+- **To use the [CLI](#cli)**, install it globally:
 
 ```bash
 npm install -g @djmima/pubmed-mcp
 ```
 
-`pubmed` と `pubmed-mcp` の 2 つのコマンドが登録されます。更新は `npm update -g @djmima/pubmed-mcp`、
-削除は `npm rm -g @djmima/pubmed-mcp` です。
+This registers two commands, `pubmed` and `pubmed-mcp`. Update with `npm update -g @djmima/pubmed-mcp`
+and uninstall with `npm rm -g @djmima/pubmed-mcp`.
 
-ソースコードを修正して使いたい場合は「[ソースからビルドする](#ソースからビルドする)」を参照してください。
+If you want to modify the source code, see [Building from source](#building-from-source).
 
-### NCBI API キーの設定（推奨）
+### Setting up an NCBI API key (recommended)
 
-APIキーを取得するとレートリミットが 3 → 8 req/s に向上します。
+With an API key, the rate limit goes from 3 to 8 req/s.
 
-1. [NCBI アカウント](https://www.ncbi.nlm.nih.gov/account/)を作成してAPIキーを発行
-2. 環境変数 `NCBI_API_KEY` にセット（後述のクライアント別設定を参照）
+1. Create an [NCBI account](https://www.ncbi.nlm.nih.gov/account/) and generate an API key
+2. Set it in the `NCBI_API_KEY` environment variable (see the client-specific settings below)
 
-MCP クライアントからローカルで起動する場合は、クライアント設定の `env` でキーを渡してください。
-`.env` は起動時のカレントディレクトリから読み込まれるため、クライアント経由の起動では
-プロジェクト直下の `.env` が読まれないことがあります。
+When an MCP client starts the server locally, pass the key in the `env` section of the client configuration.
+`.env` is read from the current directory at startup, so when a client starts the server, the `.env` in
+the project root may not be read.
 
-APIキーは、このサーバーを運用する個人または組織が所有・管理するものを設定してください。
-リポジトリにはAPIキーを同梱しません。レスポンス中にNCBI APIの `echo` が含まれる場合も、
-`api_key` 値は `<redacted>` にマスクされます。
+Use an API key owned and managed by the person or organization running this server.
+The repository does not ship an API key. When a response includes the `echo` from the NCBI API,
+the `api_key` value is masked as `<redacted>`.
 
-クライアント側ではプロセスごとに簡易レートリミッターをかけています。APIキーなしでは最大
-3 req/s、APIキーありではNCBI上限の10 req/sに対して余裕を持たせた8 req/sで送信します（NCBIは到着時刻で数えるため、回線の揺らぎ分の余裕）。HTTP 429 が返った場合は最大2回まで待機して再試行します。
-同一プロセス内の並列呼び出しは自動的に間隔調整されますが、Cloud Runなどで複数インスタンスを
-動かす場合は全インスタンス合算でNCBIの上限を超えないようにしてください。目安として、単一
-インスタンスではAPIキーありで8並列程度、APIキーなしで2並列程度までに抑える運用を推奨します。
+The client applies a simple per-process rate limiter. It sends at most 3 req/s without an API key,
+and 8 req/s with one, leaving a margin below NCBI's limit of 10 req/s (NCBI counts by arrival time, so the margin absorbs network jitter). On HTTP 429 it waits and retries up to twice.
+Parallel calls within one process are spaced out automatically, but if you run multiple instances
+on Cloud Run or elsewhere, keep the total across all instances within NCBI's limit. As a guideline,
+keep a single instance to about 8 concurrent requests with an API key and about 2 without.
 
 ---
 
-## 使い方
+## Usage
 
-### Claude Desktop（ローカル・stdio）
+### Claude Desktop (local, stdio)
 
-`claude_desktop_config.json` の `mcpServers` にサーバーを追加します。
+Add the server to `mcpServers` in `claude_desktop_config.json`.
 
 **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
@@ -134,39 +157,39 @@ APIキーは、このサーバーを運用する個人または組織が所有�
 }
 ```
 
-- 他のサーバーが登録済みの場合は、`mcpServers` の中に `"pubmed-local": { ... }` を並べて追加します（前の項目との間のカンマを忘れずに）。
-- Windows で起動しない場合は、`"command": "cmd"`、`"args": ["/c", "npx", "-y", "@djmima/pubmed-mcp@latest"]` に変えてください。
-- `@latest` を付けると、起動のたびに npm に最新版があるか確認します。版を固定したい場合は `@djmima/pubmed-mcp@1.0.0` のように書きます。
-- サーバー名を `pubmed-local` にしておくと、リモート版（`pubmed-remote`）や同じツール名を持つ他の PubMed コネクタと区別しやすくなります。
+- If other servers are already registered, add `"pubmed-local": { ... }` alongside them inside `mcpServers` (don't forget the comma after the previous entry).
+- If it doesn't start on Windows, change it to `"command": "cmd"` and `"args": ["/c", "npx", "-y", "@djmima/pubmed-mcp@latest"]`.
+- With `@latest`, the client checks npm for a newer version at every startup. To pin a version, write it as `@djmima/pubmed-mcp@1.0.0`.
+- Naming the server `pubmed-local` makes it easy to tell apart from the remote server (`pubmed-remote`) and from other PubMed connectors with the same tool names.
 
-設定後、Claude Desktop を完全に終了してから再起動してください。ウィンドウを閉じただけではアプリが常駐したままになることがあります（Windows ではタスクトレイのアイコンから終了できます）。
-この設定のサーバーは、Claude Desktop の Code タブで開いたセッションにも読み込まれます。
+After configuring, quit Claude Desktop completely and restart it. Closing the window may leave the app running in the background (on Windows, quit from the system tray icon).
+Servers in this file are also loaded into sessions opened in the Code tab of Claude Desktop.
 
-起動しない場合は、ログ（Windows: `%APPDATA%\Claude\logs\mcp-server-pubmed-local.log`、macOS: `~/Library/Logs/Claude/mcp-server-pubmed-local.log`）を確認してください。
+If the server doesn't start, check the log (Windows: `%APPDATA%\Claude\logs\mcp-server-pubmed-local.log`, macOS: `~/Library/Logs/Claude/mcp-server-pubmed-local.log`).
 
 ---
 
-### Claude Code（ローカル・stdio）
+### Claude Code (local, stdio)
 
-`claude mcp add` で登録します。`--scope user` を付けるとすべてのプロジェクトで使えます。
+Register the server with `claude mcp add`. With `--scope user`, it is available in every project.
 
 ```bash
 claude mcp add --env NCBI_API_KEY=your_api_key_here --transport stdio --scope user pubmed-local -- npx -y @djmima/pubmed-mcp@latest
 ```
 
-- `--` より後ろは、サーバーの起動コマンドとしてそのまま渡されます。
-- Windows（WSL ではない環境）では、`--` の後ろを `cmd /c npx -y @djmima/pubmed-mcp@latest` にしてください。
-- `--env` の直後にサーバー名を書くと `KEY=value` の続きとして解釈されてエラーになるため、間に別のオプション（ここでは `--transport stdio`）を挟みます。
-- 登録内容は `~/.claude.json`（user / local スコープ）またはプロジェクト直下の `.mcp.json`（project スコープ）に保存されます。`~/.claude/settings.json` に `mcpServers` を書いても読み込まれません。
-- Claude Desktop の Code タブだけで使う場合は、上記の `claude_desktop_config.json` への登録で読み込まれるため、この手順は不要です。
+- Everything after `--` is passed as-is as the command that starts the server.
+- On Windows (not WSL), use `cmd /c npx -y @djmima/pubmed-mcp@latest` after `--`.
+- If the server name comes right after `--env`, it is parsed as a continuation of `KEY=value` and fails, so put another option (here, `--transport stdio`) in between.
+- The registration is saved in `~/.claude.json` (user / local scope) or in `.mcp.json` in the project root (project scope). `mcpServers` written in `~/.claude/settings.json` is not read.
+- If you only use the Code tab of Claude Desktop, the `claude_desktop_config.json` registration above is enough, and you can skip this step.
 
-登録後、`claude mcp list` または Claude Code 内の `/mcp` で接続状態を確認できます。
+After registering, check the connection with `claude mcp list` or `/mcp` inside Claude Code.
 
 ---
 
-### Codex（ローカル・stdio）
+### Codex (local, stdio)
 
-Codex のデスクトップアプリ・CLI・IDE 拡張は、同じ設定ファイル `~/.codex/config.toml`（Windows: `%USERPROFILE%\.codex\config.toml`）を共有します。次のブロックを追記してください。
+The Codex desktop app, CLI, and IDE extension share one configuration file, `~/.codex/config.toml` (Windows: `%USERPROFILE%\.codex\config.toml`). Add the following block:
 
 ```toml
 [mcp_servers.pubmed-local]
@@ -177,20 +200,20 @@ args = ["-y", "@djmima/pubmed-mcp@latest"]
 NCBI_API_KEY = "your_api_key_here"
 ```
 
-- Windows で起動しない場合は、`command = "cmd"`、`args = ["/c", "npx", "-y", "@djmima/pubmed-mcp@latest"]` に変えてください。
-- Codex は OS の環境変数をそのまま MCP サーバーへ渡しません。API キーは上のように `env` に書くか、`[mcp_servers.pubmed-local]` に `env_vars = ["NCBI_API_KEY"]` を追加して Codex 側の環境変数から転送してください。
+- If it doesn't start on Windows, change it to `command = "cmd"` and `args = ["/c", "npx", "-y", "@djmima/pubmed-mcp@latest"]`.
+- Codex does not pass OS environment variables through to MCP servers. Either write the API key in `env` as above, or add `env_vars = ["NCBI_API_KEY"]` under `[mcp_servers.pubmed-local]` to forward it from Codex's environment.
 
-CLI からは `codex mcp add` でも登録できます。
+You can also register it from the CLI with `codex mcp add`:
 
 ```bash
 codex mcp add pubmed-local --env NCBI_API_KEY=your_api_key_here -- npx -y @djmima/pubmed-mcp@latest
 ```
 
-設定後は Codex を再起動してください（デスクトップアプリでは **Settings → MCP servers** の **Restart**）。同じ画面の **Add server** から登録することもできます。CLI と IDE 拡張では `/mcp` で接続中のサーバーを確認できます。
+After configuring, restart Codex (in the desktop app, **Restart** under **Settings → MCP servers**). You can also register the server from **Add server** on the same screen. In the CLI and IDE extension, `/mcp` shows the connected servers.
 
 ---
 
-### Anthropic API（プログラムからの利用）
+### Anthropic API (programmatic use)
 
 ```python
 import os
@@ -209,7 +232,7 @@ response = client.beta.messages.create(
         "type": "url",
         "url": "https://pubmed-mcp-PROJECT_NUMBER.asia-northeast1.run.app/mcp",
         "name": "pubmed",
-        # /mcp は OAuth で保護されているため、アクセストークンが必要
+        # /mcp is protected by OAuth, so an access token is required
         "authorization_token": os.environ["PUBMED_MCP_TOKEN"],
     }],
     tools=[{"type": "mcp_toolset", "mcp_server_name": "pubmed"}],
@@ -217,14 +240,14 @@ response = client.beta.messages.create(
 )
 ```
 
-Anthropic API の MCP コネクタは HTTP で公開されたリモートサーバーにしか接続できないため、先に Cloud Run へデプロイしておく必要があります。
-デプロイ方法は後述の「[Google Cloud Run へのデプロイ](#google-cloud-run-へのデプロイ)」、アクセストークンの取得方法は「[クライアント別の接続設定](#クライアント別の接続設定)」を参照してください。
+The MCP connector in the Anthropic API can only connect to remote servers exposed over HTTP, so you need to deploy to Cloud Run first.
+See [Deploying to Google Cloud Run](#deploying-to-google-cloud-run) for deployment, and [Client connection settings](#client-connection-settings) for getting an access token.
 
 ---
 
-### ソースからビルドする
+### Building from source
 
-ソースコードを修正して使う場合は、リポジトリをクローンしてビルドします。
+To modify the source code, clone the repository and build it.
 
 ```bash
 git clone https://github.com/DJMIMA/PubMed_MCP.git
@@ -233,109 +256,109 @@ npm install
 npm run build
 ```
 
-MCP クライアントの設定では、`npx -y @djmima/pubmed-mcp@latest` の代わりに `node /absolute/path/to/PubMed_MCP/dist/index.js` を指定します
-（Windows のパスは `C:/path/to/PubMed_MCP/dist/index.js` のようにスラッシュ区切りで書きます）。
-CLI として使う場合は、続けて `npm link` を実行すると `pubmed` と `pubmed-mcp` コマンドが登録されます（解除は `npm rm -g @djmima/pubmed-mcp`）。
+In your MCP client configuration, use `node /absolute/path/to/PubMed_MCP/dist/index.js` instead of `npx -y @djmima/pubmed-mcp@latest`
+(on Windows, write the path with forward slashes, like `C:/path/to/PubMed_MCP/dist/index.js`).
+To use the CLI, run `npm link` next; it registers the `pubmed` and `pubmed-mcp` commands (undo with `npm rm -g @djmima/pubmed-mcp`).
 
-`dist/` はリポジトリに含まれません。`git pull` でソースを更新したら `npm run build` を再実行し、
-MCP クライアントを再起動してください。起動中のサーバーは再起動するまで古いビルドのまま動きます。
+`dist/` is not in the repository. After updating the source with `git pull`, run `npm run build` again
+and restart your MCP client. A running server keeps using the old build until it restarts.
 
-### ローカル開発
+### Local development
 
 ```bash
-# .env ファイルを作成してAPIキーを設定
+# Create a .env file and set your API key
 cp .env.example .env
-# .env を編集して NCBI_API_KEY を記入
+# Edit .env and fill in NCBI_API_KEY
 
-# stdio モードで起動（デフォルト）
+# Start in stdio mode (default)
 npm run dev
 
-# HTTP モードで起動（PORT を設定すると有効になる。OAuth の環境変数も必須）
+# Start in HTTP mode (enabled by setting PORT; the OAuth variables are also required)
 PORT=8080 npm run dev
-# → http://localhost:8080/mcp   MCP エンドポイント（Bearer トークン必須）
-# → http://localhost:8080/health ヘルスチェック
+# → http://localhost:8080/mcp   MCP endpoint (Bearer token required)
+# → http://localhost:8080/health Health check
 ```
 
-HTTP モードは起動時に `OAUTH_ISSUER`・`OAUTH_JWKS_URL`・`MCP_RESOURCE_URL` を読み込み、1 つでも未設定だと次のエラーで終了します。
+HTTP mode reads `OAUTH_ISSUER`, `OAUTH_JWKS_URL`, and `MCP_RESOURCE_URL` at startup, and exits with the following error if any of them is missing:
 
 ```
 Fatal error: Error: Missing required environment variable: OAUTH_ISSUER
 ```
 
-`.env` にこれらの値を設定してから起動してください（各値の意味は「[環境変数](#環境変数)」を参照）。
-`/health` や 401 応答を確かめるだけなら URL 形式の仮の値でも起動できますが、`/mcp` を実際に呼び出すには
-`MCP_RESOURCE_URL` を `aud` として発行されたアクセストークンが必要です。認証なしでツールを試す場合は stdio モードを使ってください。
+Set these values in `.env` before starting (see [Environment variables](#environment-variables) for what each one means).
+To check `/health` or the 401 response, placeholder values in URL form are enough to start the server, but to actually call `/mcp`
+you need an access token issued with `MCP_RESOURCE_URL` as its `aud`. To try the tools without authentication, use stdio mode.
 
 ---
 
 ## CLI
 
-MCP サーバーと同じツールを、シェルから `pubmed` コマンドとして実行できます。出力は MCP ツールと同じ JSON で、
-標準出力またはファイル（`-o`）に書き出されます。結果をファイルに保存して `jq` で必要なフィールドだけを取り出せば、
-Claude Code や Codex などのエージェントが大量のメタデータをコンテキストに読み込まずに済みます。
+The `pubmed` command runs the same tools as the MCP server from the shell. Its output is the same JSON as the MCP tools,
+written to standard output or to a file (`-o`). By saving results to a file and extracting only the fields you need with `jq`,
+agents such as Claude Code and Codex avoid loading large amounts of metadata into their context.
 
-たとえば `TP53 AND myelodysplastic syndromes[mh]` の上位 20 件のメタデータは約 108 KB ありますが、
-PMID・年・タイトルだけを取り出すと 3.2 KB（約 1/34）になります。全文は 1 本で数万文字あります。
+For example, the metadata for the top 20 results for `TP53 AND myelodysplastic syndromes[mh]` is about 108 KB,
+but extracting only the PMID, year, and title brings it down to 3.2 KB (about 1/34). A single full text runs to tens of thousands of characters.
 
-### インストール
+### Installation
 
 ```bash
 npm install -g @djmima/pubmed-mcp
 ```
 
-`pubmed --help` が表示されれば完了です。
+You're done when `pubmed --help` prints the help.
 
-NCBI API キーは環境変数 `NCBI_API_KEY` から読み込みます。シェルの設定ファイル（`~/.bashrc`、`~/.zshrc` など）に
-`export NCBI_API_KEY=your_api_key_here` を書くか、Windows では `setx NCBI_API_KEY your_api_key_here` を一度実行してから
-ターミナルを開き直してください。
+The NCBI API key is read from the `NCBI_API_KEY` environment variable. Add
+`export NCBI_API_KEY=your_api_key_here` to your shell configuration file (`~/.bashrc`, `~/.zshrc`, etc.), or on Windows run
+`setx NCBI_API_KEY your_api_key_here` once and then reopen your terminal.
 
-[ソースからビルドして](#ソースからビルドする) `npm link` で登録した場合は、環境変数がなければリポジトリ直下の `.env`
-（`cp .env.example .env` で作成）も読み込むため、どのディレクトリから実行してもキーが使われます。
+If you [built from source](#building-from-source) and registered the commands with `npm link`, the CLI also reads `.env` in the repository root
+(create it with `cp .env.example .env`) when the environment variable is not set, so the key is used whichever directory you run it from.
 
-### コマンド
+### Commands
 
-| コマンド | 対応する MCP ツール | 入力 | 1 リクエストの件数 |
+| Command | MCP tool | Input | Items per request |
 |---|---|---|---|
-| `pubmed search <query>` | `search_articles` | 検索式（`-` で標準入力から） | — |
-| `pubmed metadata <pmid>...` | `get_article_metadata` | PMID | 200 |
-| `pubmed related <pmid>...` | `find_related_articles` | PMID | 200 |
-| `pubmed citation --journal <雑誌> --year <年> ...` | `lookup_article_by_citation` | オプション、または `--input` で JSON 配列か JSON Lines | 100 |
-| `pubmed convert <id>...` | `convert_article_ids` | PMID・PMCID・DOI のいずれか（`--id-type` で指定） | 200 |
-| `pubmed fulltext <pmcid>...` | `get_full_text_article` | PMCID | 20 |
-| `pubmed copyright <pmid>...` | `get_copyright_status` | PMID | 50 |
+| `pubmed search <query>` | `search_articles` | Search query (`-` reads from stdin) | — |
+| `pubmed metadata <pmid>...` | `get_article_metadata` | PMIDs | 200 |
+| `pubmed related <pmid>...` | `find_related_articles` | PMIDs | 200 |
+| `pubmed citation --journal <journal> --year <year> ...` | `lookup_article_by_citation` | Options, or a JSON array or JSON Lines with `--input` | 100 |
+| `pubmed convert <id>...` | `convert_article_ids` | PMIDs, PMCIDs, or DOIs (set with `--id-type`) | 200 |
+| `pubmed fulltext <pmcid>...` | `get_full_text_article` | PMCIDs | 20 |
+| `pubmed copyright <pmid>...` | `get_copyright_status` | PMIDs | 50 |
 
-- オプション名は MCP のパラメータ名をケバブケースにしたものです（`max_results` → `--max-results`、`date_from` → `--date-from` など）。詳しくは `pubmed <command> --help` を参照してください。
-- ID は引数（空白またはカンマ区切り）で渡すか、`-` を指定して標準入力から 1 行 1 件で渡します。
-- 1 リクエストの件数を超える ID は自動で分割して順番に送り、結果を 1 つの JSON にまとめます。MCP ツールの件数上限（メタデータなら 200 件）は受けません。
-- `-o <file>` を付けると JSON をファイルに書き出し、件数とファイルサイズを標準エラー出力に表示します。
-- 終了コードは、成功で 0、NCBI やファイル操作のエラーで 1、使い方の誤りで 2 です。エラーの内容は標準エラー出力に出ます。
+- Option names are the MCP parameter names in kebab case (`max_results` → `--max-results`, `date_from` → `--date-from`, and so on). See `pubmed <command> --help` for details.
+- Pass IDs as arguments (separated by spaces or commas), or pass `-` to read them from stdin, one per line.
+- IDs beyond the per-request limit are split automatically, sent in order, and merged into one JSON. The MCP tools' limits (200 for metadata, for example) do not apply.
+- With `-o <file>`, the JSON is written to a file, and the item count and file size are printed to stderr.
+- The exit code is 0 on success, 1 on NCBI or file errors, and 2 on usage errors. Error details go to stderr.
 
-### 使用例
+### Examples
 
 ```bash
-# 検索して、PubMed が検索式をどう解釈したかを確認する
+# Search, and check how PubMed interpreted the query
 pubmed search "TP53[tiab] AND myelodysplastic syndromes[mh]" --max-results 200 -o search.json
 jq '{total_count, query_translation, warnings, errors}' search.json
 
-# ヒットした全件のメタデータを取得し、PMID・年・雑誌・タイトルの一覧にする
+# Get metadata for every hit and list PMID, year, journal, and title
 jq -r '.pmids[]' search.json | pubmed metadata - -o meta.json
 jq -r '.articles[] | [.identifiers.pmid, .publication_date.year, .journal.iso_abbreviation, .title] | @tsv' meta.json
 
-# 全文を取得できる論文だけ全文を取得し、必要な箇所だけを検索する
+# Get full text only for articles that have it, and search just the parts you need
 jq -r '.pmids[]' search.json | pubmed copyright - -o rights.json
 jq -r '.statuses[] | select(.has_full_text) | .pmcid' rights.json | pubmed fulltext - -o full.json
 jq -r '.articles[].full_text' full.json | grep -n -i 'venetoclax'
 ```
 
-### エージェントから使う
+### Using with agents
 
-[`skills/pubmed-cli/SKILL.md`](skills/pubmed-cli/SKILL.md) は、CLI の使い方（結果はファイルに保存して jq で読む、ID はまとめて 1 回で渡す、など）と
-jq のレシピをエージェントに教える Skill です。ユーザー単位のスキルフォルダにコピーすると、どのプロジェクトでも使われます。
-Claude Code（Claude Desktop の Code タブを含む）は `~/.claude/skills/`、Codex は `~/.agents/skills/` から読み込みます
-（Windows では `~` が `%USERPROFILE%` になります）。
+[`skills/pubmed-cli/SKILL.md`](skills/pubmed-cli/SKILL.md) is a Skill that teaches agents how to use the CLI (save results to files and read them with jq, pass IDs together in one call, and so on)
+along with jq recipes. Copy it into your user-level skills folder and it is used in every project.
+Claude Code (including the Code tab of Claude Desktop) reads skills from `~/.claude/skills/`, and Codex from `~/.agents/skills/`
+(on Windows, `~` is `%USERPROFILE%`).
 
-Skill は npm パッケージにも含まれているので、`npm install -g` でインストールした場合は次のコマンドでコピーできます
-（Windows では Git Bash で実行してください）。
+The Skill is included in the npm package, so if you installed with `npm install -g`, you can copy it with the following commands
+(on Windows, run them in Git Bash):
 
 ```bash
 SKILL_DIR="$(npm root -g)/@djmima/pubmed-mcp/skills/pubmed-cli"
@@ -344,11 +367,11 @@ cp -r "$SKILL_DIR" ~/.claude/skills/
 cp -r "$SKILL_DIR" ~/.agents/skills/
 ```
 
-ソースからビルドした場合は、リポジトリ直下で `SKILL_DIR=skills/pubmed-cli` としてから同じコマンドを実行します。
-パッケージや Skill を更新したときは、もう一度コピーしてください。
+If you built from source, set `SKILL_DIR=skills/pubmed-cli` in the repository root and run the same commands.
+Copy it again whenever you update the package or the Skill.
 
-Claude Code でコマンドを実行するたびに許可を求められないようにするには、`~/.claude/settings.json` の `permissions.allow` に
-`pubmed` と `jq` を追加します（既に設定がある場合は配列に追記してください）。
+To stop Claude Code from asking for permission every time it runs a command, add `pubmed` and `jq` to `permissions.allow`
+in `~/.claude/settings.json` (if you already have settings, append to the array):
 
 ```json
 {
@@ -358,67 +381,67 @@ Claude Code でコマンドを実行するたびに許可を求められない�
 }
 ```
 
-注意点:
+Notes:
 
-- CLI はシェルを実行できる環境（Claude Code、Codex など）でしか使えません。claude.ai のチャットや、Cloud Run にデプロイしたカスタムコネクタからは、これまでどおり MCP サーバーを使ってください。
-- NCBI のレート制限はプロセスごとにかかります。`pubmed` を並列で複数起動すると合計で上限を超えるため、ID はまとめて 1 回の実行で渡してください。
-- Windows では Git Bash か PowerShell 7 でパイプラインを実行してください。Windows PowerShell 5.1 の `>` はファイルを UTF-16 で保存するため、代わりに `-o` を使ってください。
+- The CLI works only where a shell is available (Claude Code, Codex, and so on). From claude.ai chats or from a custom connector deployed on Cloud Run, keep using the MCP server.
+- NCBI rate limits apply per process. Running several `pubmed` processes in parallel can exceed the limit in total, so pass IDs together in a single run.
+- On Windows, run pipelines in Git Bash or PowerShell 7. In Windows PowerShell 5.1, `>` saves files as UTF-16, so use `-o` instead.
 
 ---
 
-## Google Cloud Run へのデプロイ
+## Deploying to Google Cloud Run
 
-このサーバーは Docker コンテナとして Google Cloud Run にデプロイできます。
-`PORT` 環境変数が設定されると自動的に HTTP モードで起動し、Streamable HTTP トランスポートで MCP クライアントと通信します。
+The server can be deployed to Google Cloud Run as a Docker container.
+When the `PORT` environment variable is set, it starts in HTTP mode automatically and talks to MCP clients over the Streamable HTTP transport.
 
-HTTP モードの `/mcp` は **OAuth 2.0 で保護** されています。サーバーは OAuth のリソースサーバーとして動作し、
-リクエストごとに Bearer トークン（JWT）の署名・発行者（`iss`）・対象（`aud`）・有効期限を、認可サーバーの公開鍵（JWKS）で検証します。
-ログイン画面やトークンの発行は外部の認可サーバーが担当します（ここでは WorkOS AuthKit を使います）。
+In HTTP mode, `/mcp` is **protected by OAuth 2.0**. The server acts as an OAuth resource server and,
+for every request, verifies the Bearer token's (JWT's) signature, issuer (`iss`), audience (`aud`), and expiry against the authorization server's public keys (JWKS).
+The login screen and token issuance are handled by an external authorization server (here, WorkOS AuthKit).
 
-Cloud Run 自体は `--allow-unauthenticated` で公開します。Cloud Run の IAM 認証（IAP を含む）は claude.ai からの接続と両立しないため、
-アクセス制御は Cloud Run ではなくアプリ側の OAuth で行います。
+Cloud Run itself is exposed with `--allow-unauthenticated`. Cloud Run's IAM authentication (including IAP) is incompatible with connections from claude.ai,
+so access control is done by OAuth in the app rather than by Cloud Run.
 
-| パス | 認証 | 内容 |
-|------|------|------|
-| `/mcp` | Bearer トークン必須 | MCP エンドポイント |
-| `/.well-known/oauth-protected-resource` | 不要 | 認可サーバーの場所を示すメタデータ（RFC 9728） |
-| `/health` | 不要 | ヘルスチェック |
+| Path | Authentication | Description |
+|------|----------------|-------------|
+| `/mcp` | Bearer token required | MCP endpoint |
+| `/.well-known/oauth-protected-resource` | None | Metadata pointing to the authorization server (RFC 9728) |
+| `/health` | None | Health check |
 
 ```
-Claude（Web / Desktop / モバイル）・Claude Code・Anthropic API
-        │  Authorization: Bearer <WorkOS AuthKit が発行したアクセストークン>
+Claude (Web / Desktop / mobile), Claude Code, Anthropic API
+        │  Authorization: Bearer <access token issued by WorkOS AuthKit>
         ▼
-  Cloud Run（--allow-unauthenticated）
-        │  /mcp で JWT を検証し、ALLOWED_SUBJECTS で利用者を限定
+  Cloud Run (--allow-unauthenticated)
+        │  /mcp verifies the JWT and limits users with ALLOWED_SUBJECTS
         ▼
-  MCP ハンドラ
+  MCP handler
 ```
 
-Claude の各アプリと Claude Code は、トークンなしのリクエストに返る 401 応答（`WWW-Authenticate` ヘッダー）から
-メタデータをたどって認可サーバーを見つけ、ブラウザでのログインを経てトークンを取得します。
-Anthropic API から使う場合は、呼び出し側でトークンを用意して渡します。
+The Claude apps and Claude Code follow the metadata from the 401 response (`WWW-Authenticate` header) returned to requests without a token
+to find the authorization server, and get a token after a login in the browser.
+When using the Anthropic API, the caller prepares the token and passes it in.
 
-### 前提条件
+### Prerequisites
 
-- Google Cloud プロジェクト（課金が有効なもの）
-- [gcloud CLI](https://cloud.google.com/sdk/docs/install) インストール済み・ログイン済み
-- [WorkOS](https://workos.com/) アカウント（AuthKit を OAuth 認可サーバーとして使用）
+- A Google Cloud project (with billing enabled)
+- [gcloud CLI](https://cloud.google.com/sdk/docs/install) installed and logged in
+- A [WorkOS](https://workos.com/) account (AuthKit is used as the OAuth authorization server)
 
-### ステップ 1 — プロジェクトと API の準備
+### Step 1 — Set up the project and APIs
 
 ```bash
-# デプロイ先プロジェクトをセット
+# Set the project to deploy to
 gcloud config set project MY_PROJECT_ID
 
-# 必要な API を有効化（初回のみ）
+# Enable the required APIs (first time only)
 gcloud services enable \
   run.googleapis.com \
   artifactregistry.googleapis.com \
   cloudbuild.googleapis.com \
-  secretmanager.googleapis.com  # NCBI_API_KEY を管理する場合のみ
+  secretmanager.googleapis.com  # only if you manage NCBI_API_KEY there
 ```
 
-### ステップ 2 — Artifact Registry リポジトリを作成（初回のみ）
+### Step 2 — Create an Artifact Registry repository (first time only)
 
 ```bash
 gcloud artifacts repositories create pubmed-mcp \
@@ -427,36 +450,36 @@ gcloud artifacts repositories create pubmed-mcp \
   --description="PubMed MCP Server"
 ```
 
-### ステップ 3 — シークレットを Secret Manager に登録
+### Step 3 — Store secrets in Secret Manager
 
-NCBI API キーをコマンド履歴やログに残さないために Secret Manager を使います。
+Use Secret Manager so the NCBI API key doesn't end up in your command history or logs.
 
 ```bash
-# NCBI API キーを登録
+# Store the NCBI API key
 echo -n "your_ncbi_api_key" | \
   gcloud secrets create ncbi-api-key \
     --data-file=- \
     --replication-policy=automatic
 ```
 
-### ステップ 4 — コンテナイメージをビルドしてプッシュ
+### Step 4 — Build and push the container image
 
-Cloud Build を使うとローカルに Docker をインストールせずにビルドできます。
-`gcloud builds submit` はカレントディレクトリのファイルを Cloud Build に送信するため、
-**事前にリポジトリをクローンしておく必要があります。**
+With Cloud Build, you can build without installing Docker locally.
+`gcloud builds submit` sends the files in the current directory to Cloud Build, so
+**clone the repository first.**
 
 ```bash
-# リポジトリをクローンしてディレクトリに移動
+# Clone the repository and move into it
 git clone https://github.com/DJMIMA/PubMed_MCP.git
 cd PubMed_MCP
 
-# Cloud Build でビルド（ローカルに Docker 不要）
+# Build with Cloud Build (no local Docker needed)
 gcloud builds submit \
   --region=asia-northeast1 \
   --tag asia-northeast1-docker.pkg.dev/MY_PROJECT_ID/pubmed-mcp/server:latest
 ```
 
-ローカルの Docker でビルドする場合:
+To build with local Docker:
 
 ```bash
 gcloud auth configure-docker asia-northeast1-docker.pkg.dev
@@ -465,10 +488,10 @@ docker build -t asia-northeast1-docker.pkg.dev/MY_PROJECT_ID/pubmed-mcp/server:l
 docker push asia-northeast1-docker.pkg.dev/MY_PROJECT_ID/pubmed-mcp/server:latest
 ```
 
-### ステップ 5 — OAuth 認可サーバー（WorkOS AuthKit）を設定
+### Step 5 — Set up the OAuth authorization server (WorkOS AuthKit)
 
-まず MCP エンドポイントの公開 URL を決めます。Cloud Run のサービスには
-`https://サービス名-プロジェクト番号.リージョン.run.app` 形式の URL が割り当てられるため、デプロイ前に確定できます。
+First, decide the public URL of the MCP endpoint. Cloud Run services are assigned a URL of the form
+`https://SERVICE_NAME-PROJECT_NUMBER.REGION.run.app`, so you can determine it before deploying.
 
 ```bash
 PROJECT_NUMBER=$(gcloud projects describe MY_PROJECT_ID --format='value(projectNumber)')
@@ -476,30 +499,30 @@ MCP_RESOURCE_URL="https://pubmed-mcp-${PROJECT_NUMBER}.asia-northeast1.run.app/m
 echo "$MCP_RESOURCE_URL"
 ```
 
-この URL が `MCP_RESOURCE_URL` です。WorkOS の Resource Indicator や各クライアントに登録する URL とは**完全に同じ文字列**にしてください
-（クライアントは接続先の URL とメタデータの `resource` が一致するかを確認し、サーバーはトークンの `aud` をこの値と照合します）。
-Cloud Run には `https://pubmed-mcp-xxxx-an.a.run.app` 形式の URL も割り当てられ、どちらでもアクセスできますが、OAuth で使う URL はどちらか一方に統一します。
+This URL is `MCP_RESOURCE_URL`. Use **exactly the same string** for the WorkOS Resource Indicator and for the URL you register in each client
+(clients check that the URL they connect to matches the `resource` in the metadata, and the server checks the token's `aud` against this value).
+Cloud Run also assigns a URL of the form `https://pubmed-mcp-xxxx-an.a.run.app`, and both work, but use only one of them for OAuth.
 
-次に WorkOS ダッシュボードで AuthKit を設定します。
+Next, configure AuthKit in the WorkOS dashboard.
 
-1. **Connect → Configuration** で **Dynamic Client Registration** を有効にする（claude.ai などの MCP クライアントが、自分自身を OAuth クライアントとして登録できるようにするため）
-2. `MCP_RESOURCE_URL` を **Resource Indicator** として登録する（アクセストークンの `aud` がこの URL になる）
-3. AuthKit ドメインの認可サーバーメタデータを開き、`issuer` と `jwks_uri` の値を控える
+1. Under **Connect → Configuration**, enable **Dynamic Client Registration** (so MCP clients such as claude.ai can register themselves as OAuth clients)
+2. Register `MCP_RESOURCE_URL` as a **Resource Indicator** (access tokens get this URL as their `aud`)
+3. Open the authorization server metadata of your AuthKit domain and note the `issuer` and `jwks_uri` values
 
    ```bash
    curl https://YOUR_AUTHKIT_DOMAIN/.well-known/oauth-authorization-server
    # → {"issuer":"https://YOUR_AUTHKIT_DOMAIN", ..., "jwks_uri":"https://YOUR_AUTHKIT_DOMAIN/oauth2/jwks", ...}
    ```
 
-WorkOS の Staging 環境と Production 環境は、設定も AuthKit ドメインも別々です。環境を切り替えるときは上の設定をやり直し、
-`OAUTH_ISSUER`・`OAUTH_JWKS_URL` も差し替えてください。
+WorkOS Staging and Production environments have separate settings and separate AuthKit domains. When you switch environments, redo the settings above
+and replace `OAUTH_ISSUER` and `OAUTH_JWKS_URL`.
 
-### ステップ 6 — Cloud Run にデプロイ
+### Step 6 — Deploy to Cloud Run
 
-ステップ 5 で控えた値を使ってデプロイします。`ALLOWED_SUBJECTS` には最初は仮の値（ここでは `placeholder`）を入れておきます（理由はステップ 8 を参照）。
+Deploy with the values you noted in step 5. Set `ALLOWED_SUBJECTS` to a placeholder value (here, `placeholder`) for now (see step 8 for why).
 
 ```bash
-# ステップ 5 で控えた issuer と jwks_uri の値に置き換える
+# Replace with the issuer and jwks_uri values from step 5
 OAUTH_ISSUER="https://YOUR_AUTHKIT_DOMAIN"
 OAUTH_JWKS_URL="https://YOUR_AUTHKIT_DOMAIN/oauth2/jwks"
 
@@ -515,23 +538,23 @@ gcloud run deploy pubmed-mcp \
   --set-env-vars "OAUTH_ISSUER=${OAUTH_ISSUER},OAUTH_JWKS_URL=${OAUTH_JWKS_URL},MCP_RESOURCE_URL=${MCP_RESOURCE_URL},ALLOWED_SUBJECTS=placeholder"
 ```
 
-| 変数 | 設定する値 |
-|------|-----------|
-| `OAUTH_ISSUER` | 認可サーバーメタデータの `issuer`。トークンの `iss` と完全一致で照合されるので、末尾の `/` の有無も含めてそのままコピーする |
-| `OAUTH_JWKS_URL` | 同じメタデータの `jwks_uri`。トークンの署名検証に使う公開鍵の URL |
-| `MCP_RESOURCE_URL` | ステップ 5 で決めた MCP エンドポイントの URL。トークンの `aud` と照合し、`/.well-known/oauth-protected-resource` の `resource` としても公開される |
-| `ALLOWED_SUBJECTS` | 接続を許可するユーザー ID（トークンの `sub`）のカンマ区切りリスト。空にすると、AuthKit で有効なトークンを取得できるユーザー全員が接続できる |
+| Variable | Value |
+|----------|-------|
+| `OAUTH_ISSUER` | The `issuer` from the authorization server metadata. It is compared with the token's `iss` exactly, so copy it as-is, including whether it has a trailing `/` |
+| `OAUTH_JWKS_URL` | The `jwks_uri` from the same metadata: the URL of the public keys used to verify token signatures |
+| `MCP_RESOURCE_URL` | The MCP endpoint URL you decided in step 5. It is compared with the token's `aud`, and published as `resource` in `/.well-known/oauth-protected-resource` |
+| `ALLOWED_SUBJECTS` | A comma-separated list of user IDs (the token's `sub`) allowed to connect. If empty, every user who can get a valid token from AuthKit can connect |
 
-`OAUTH_ISSUER`・`OAUTH_JWKS_URL`・`MCP_RESOURCE_URL` のどれかが欠けていると、サーバーは起動時に
-`Missing required environment variable: ...` で終了し、デプロイは失敗します。失敗した場合は Cloud Run のログでこのメッセージを確認してください
-（Cloud Console で設定した場合は、変数名の前後に空白が入っていないかも確認してください）。
+If any of `OAUTH_ISSUER`, `OAUTH_JWKS_URL`, or `MCP_RESOURCE_URL` is missing, the server exits at startup with
+`Missing required environment variable: ...` and the deployment fails. If it fails, look for this message in the Cloud Run logs
+(if you set the variables in Cloud Console, also check for spaces around the variable names).
 
-> **`--set-env-vars` と `--update-env-vars` の違い**: `--set-env-vars` は既存の環境変数をすべて削除してから、指定した値を設定します（指定しなかった変数は消えます）。
-> デプロイ後に一部の値だけを追加・変更するときは、既存の値とマージされる `--update-env-vars` を使ってください（`gcloud run services update` でも使えます）。
+> **`--set-env-vars` vs. `--update-env-vars`**: `--set-env-vars` removes all existing environment variables and then sets the ones you specify (variables you leave out are deleted).
+> To add or change only some values after deploying, use `--update-env-vars`, which merges with the existing values (it also works with `gcloud run services update`).
 
-### ステップ 7 — 動作確認
+### Step 7 — Verify the deployment
 
-`/health` と `/.well-known/oauth-protected-resource` は認証なしで応答します。`/mcp` はトークンなしでは **401 が返れば正常** です。
+`/health` and `/.well-known/oauth-protected-resource` respond without authentication. Without a token, `/mcp` **should return 401**.
 
 **Linux / macOS (bash)**
 
@@ -539,15 +562,15 @@ gcloud run deploy pubmed-mcp \
 PROJECT_NUMBER=$(gcloud projects describe MY_PROJECT_ID --format='value(projectNumber)')
 CLOUD_RUN_URL="https://pubmed-mcp-${PROJECT_NUMBER}.asia-northeast1.run.app"
 
-# ヘルスチェック
+# Health check
 curl "$CLOUD_RUN_URL/health"
 # → ok
 
-# Protected Resource Metadata（resource が MCP_RESOURCE_URL、authorization_servers が OAUTH_ISSUER になっていることを確認）
+# Protected Resource Metadata (check that resource is MCP_RESOURCE_URL and authorization_servers is OAUTH_ISSUER)
 curl "$CLOUD_RUN_URL/.well-known/oauth-protected-resource"
 # → {"resource":"https://pubmed-mcp-PROJECT_NUMBER.asia-northeast1.run.app/mcp","authorization_servers":["https://YOUR_AUTHKIT_DOMAIN"],"bearer_methods_supported":["header"]}
 
-# MCP エンドポイント（トークンなしなので 401。-i でヘッダーも表示。ヒアドキュメントでクォート問題を回避）
+# MCP endpoint (401 because there is no token; -i shows headers; a heredoc avoids quoting problems)
 curl -i "$CLOUD_RUN_URL/mcp" \
   -X POST \
   -H "Content-Type: application/json" \
@@ -556,7 +579,7 @@ curl -i "$CLOUD_RUN_URL/mcp" \
 EOF
 ```
 
-`/mcp` の応答は次のようになります（抜粋。HTTP のバージョンやヘッダー名の大文字・小文字は環境によって異なります）。
+The `/mcp` response looks like this (excerpt; the HTTP version and header-name casing vary by environment):
 
 ```
 HTTP/2 401
@@ -566,13 +589,13 @@ content-type: application/json; charset=utf-8
 {"error":"missing_token"}
 ```
 
-MCP クライアントは `WWW-Authenticate` ヘッダーの `resource_metadata` をたどって認可サーバーを見つけます。
-トークンの検証に失敗した場合は `error="invalid_token"` の 401、トークンは有効でも `sub` が `ALLOWED_SUBJECTS` にない場合は 403（`{"error":"forbidden"}`）が返ります。
+MCP clients follow `resource_metadata` in the `WWW-Authenticate` header to find the authorization server.
+If token verification fails, the server returns 401 with `error="invalid_token"`; if the token is valid but its `sub` is not in `ALLOWED_SUBJECTS`, it returns 403 (`{"error":"forbidden"}`).
 
-**Windows（コマンドプロンプト）**
+**Windows (Command Prompt)**
 
 ```cmd
-:: %CLOUD_RUN_URL% に URL を設定してから実行（PROJECT_NUMBER は自分のプロジェクト番号に置き換える）
+:: Set %CLOUD_RUN_URL% before running (replace PROJECT_NUMBER with your project number)
 set CLOUD_RUN_URL=https://pubmed-mcp-PROJECT_NUMBER.asia-northeast1.run.app
 
 curl "%CLOUD_RUN_URL%/health"
@@ -582,7 +605,7 @@ curl "%CLOUD_RUN_URL%/.well-known/oauth-protected-resource"
 curl -i "%CLOUD_RUN_URL%/mcp" -X POST -H "Content-Type: application/json" -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"0.0.1\"}}}"
 ```
 
-**Windows（PowerShell）**
+**Windows (PowerShell)**
 
 ```powershell
 $CLOUD_RUN_URL = "https://pubmed-mcp-PROJECT_NUMBER.asia-northeast1.run.app"
@@ -595,17 +618,17 @@ curl.exe -i "$CLOUD_RUN_URL/mcp" -X POST -H "Content-Type: application/json" `
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.0.1"}}}'
 ```
 
-### ステップ 8 — 自分のユーザー ID を ALLOWED_SUBJECTS に登録
+### Step 8 — Add your user ID to ALLOWED_SUBJECTS
 
-Dynamic Client Registration では誰でも OAuth クライアントを登録できるため、`ALLOWED_SUBJECTS` で接続できるユーザーを限定します
-（空のままだと AuthKit にログインできるユーザー全員が `/mcp` を使えます。AuthKit でサインアップを許可している場合は第三者も含まれます）。
-設定する値はアクセストークンの `sub`（WorkOS のユーザー ID。`user_` で始まる値）です。
+With Dynamic Client Registration, anyone can register an OAuth client, so use `ALLOWED_SUBJECTS` to limit which users can connect
+(if it is empty, every user who can log in to AuthKit can use `/mcp`; if AuthKit allows sign-ups, that includes third parties).
+The value is the access token's `sub` (the WorkOS user ID, starting with `user_`).
 
-`ALLOWED_SUBJECTS` が空のときは `sub` がログに記録されません。そのため、仮の値を入れた状態で一度接続し、拒否されたときのログから確認します。
+When `ALLOWED_SUBJECTS` is empty, `sub` is not logged. So connect once with the placeholder value in place, and find your `sub` in the log entry for the rejected request.
 
-1. 後述の「[クライアント別の接続設定](#クライアント別の接続設定)」の手順で claude.ai などから接続し、WorkOS AuthKit でログインします。
-   `sub` が `ALLOWED_SUBJECTS` に含まれていないため接続は 403 で失敗し、サーバーのログに `[auth] forbidden subject: ...` が記録されます。
-2. ログから自分の `sub` を確認します（WorkOS ダッシュボードの **Users** で確認できるユーザー ID と同じ値です）。
+1. Connect from claude.ai or another client following [Client connection settings](#client-connection-settings) below, and log in with WorkOS AuthKit.
+   Because your `sub` is not in `ALLOWED_SUBJECTS`, the connection fails with 403, and the server logs `[auth] forbidden subject: ...`.
+2. Find your `sub` in the logs (it is the same as the user ID shown under **Users** in the WorkOS dashboard).
 
    ```bash
    gcloud run services logs read pubmed-mcp \
@@ -615,7 +638,7 @@ Dynamic Client Registration では誰でも OAuth クライアントを登録で
    # → ... [auth] forbidden subject: user_01XXXXXXXXXXXXXXXXXXXXXXXX
    ```
 
-3. その値を設定します。`--update-env-vars` なので、ほかの環境変数はそのまま残ります。
+3. Set that value. Because this uses `--update-env-vars`, the other environment variables stay as they are.
 
    ```bash
    gcloud run services update pubmed-mcp \
@@ -623,44 +646,44 @@ Dynamic Client Registration では誰でも OAuth クライアントを登録で
      --update-env-vars ALLOWED_SUBJECTS=user_01XXXXXXXXXXXXXXXXXXXXXXXX
    ```
 
-   複数のユーザーを許可する場合は、値にカンマが含まれるため `^@^` で区切り文字を変えて指定します
-   （例: `--update-env-vars '^@^ALLOWED_SUBJECTS=user_01AAAA,user_01BBBB'`。Windows の cmd / PowerShell では `^` を `^^^^` と書きます。詳しくは `gcloud topic escaping` を参照）。
-4. クライアントから接続し直します。
+   To allow several users, the value contains commas, so change the delimiter with `^@^`
+   (for example, `--update-env-vars '^@^ALLOWED_SUBJECTS=user_01AAAA,user_01BBBB'`; in Windows cmd / PowerShell, write `^` as `^^^^`. See `gcloud topic escaping` for details).
+4. Reconnect from the client.
 
 ---
 
-### クライアント別の接続設定
+### Client connection settings
 
-デプロイ後、各クライアントに MCP エンドポイントの URL を登録します。URL は `MCP_RESOURCE_URL` と**完全に同じ文字列**
-（例: `https://pubmed-mcp-PROJECT_NUMBER.asia-northeast1.run.app/mcp`）にしてください。
-初回接続時に WorkOS AuthKit のログイン画面が開きます。ログインしたアカウントの `sub` が `ALLOWED_SUBJECTS` に含まれていれば接続できます
-（自分の `sub` を登録する手順はステップ 8 を参照）。
+After deploying, register the MCP endpoint URL in each client. Use **exactly the same string** as `MCP_RESOURCE_URL`
+(for example, `https://pubmed-mcp-PROJECT_NUMBER.asia-northeast1.run.app/mcp`).
+The WorkOS AuthKit login screen opens on the first connection. You can connect if the `sub` of the account you log in with is in `ALLOWED_SUBJECTS`
+(see step 8 for adding your own `sub`).
 
-**Claude（Web 版・Claude Desktop）— カスタムコネクタ**
+**Claude (Web and Claude Desktop) — custom connector**
 
-リモートサーバーは「カスタムコネクタ」として追加します（[Claude ヘルプセンター](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp)）。
-カスタムコネクタは Free プランでも 1 つまで利用できます。
+Add the remote server as a "custom connector" ([Claude Help Center](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp)).
+The Free plan also allows one custom connector.
 
-- Pro / Max プラン
-  1. [claude.ai](https://claude.ai) または Claude Desktop で **Customize > Connectors** を開く
-  2. **+** → **Add custom connector** をクリック
-  3. URL（`MCP_RESOURCE_URL`）を入力して **Add** をクリック
-  4. 追加したコネクタの **Connect** から認証する（WorkOS AuthKit のログイン画面が開く）
-- Team / Enterprise プラン
-  1. オーナーが **Organization settings > Connectors** を開き、**Add** → **Custom** にカーソルを合わせて **Web** を選ぶ
-  2. URL（`MCP_RESOURCE_URL`）を入力して **Add** をクリック
-  3. 各メンバーが **Customize > Connectors** でこのコネクタを探し、**Connect** から認証する
+- Pro / Max plans
+  1. Open **Customize > Connectors** in [claude.ai](https://claude.ai) or Claude Desktop
+  2. Click **+** → **Add custom connector**
+  3. Enter the URL (`MCP_RESOURCE_URL`) and click **Add**
+  4. Authenticate from **Connect** on the added connector (the WorkOS AuthKit login screen opens)
+- Team / Enterprise plans
+  1. An owner opens **Organization settings > Connectors**, clicks **Add**, hovers over **Custom**, and chooses **Web**
+  2. Enter the URL (`MCP_RESOURCE_URL`) and click **Add**
+  3. Each member finds the connector under **Customize > Connectors** and authenticates from **Connect**
 
-**Advanced settings** の OAuth Client ID / OAuth Client Secret は空欄のままで構いません（Dynamic Client Registration でクライアントが自動登録されます）。
-チャットで使うときは、入力欄左下の **+** → **Connectors** から会話ごとに有効にします。
+Leave OAuth Client ID / OAuth Client Secret under **Advanced settings** empty (the client registers itself with Dynamic Client Registration).
+To use it in a chat, enable it per conversation from **+** → **Connectors** at the bottom left of the input box.
 
-Claude Desktop の `claude_desktop_config.json` はローカル（stdio）サーバー用の設定で、`"type"` や `"url"` を書いてもリモートサーバーには接続されません。
-Desktop でもリモートサーバーは上記のカスタムコネクタとして追加してください（Web 版で追加したコネクタは Desktop でもそのまま使えます）。
+Claude Desktop's `claude_desktop_config.json` is for local (stdio) servers; writing `"type"` or `"url"` there does not connect to a remote server.
+On Desktop too, add the remote server as a custom connector as above (connectors added on the Web are available on Desktop as well).
 
-**Claude モバイルアプリ（Android / iOS）**
+**Claude mobile apps (Android / iOS)**
 
-Web 版または Claude Desktop で追加したカスタムコネクタは、同じアカウントのモバイルアプリでもそのまま使えます。
-モバイルアプリからのコネクタ追加はベータ機能のため、追加は Web 版か Desktop で行ってください。
+Custom connectors added on the Web or in Claude Desktop work as-is in the mobile apps signed in to the same account.
+Adding connectors from the mobile apps is a beta feature, so add them on the Web or in Desktop.
 
 **Claude Code**
 
@@ -668,10 +691,10 @@ Web 版または Claude Desktop で追加したカスタムコネクタは、同
 claude mcp add --transport http --scope user pubmed-remote https://pubmed-mcp-PROJECT_NUMBER.asia-northeast1.run.app/mcp
 ```
 
-Claude Code は `~/.claude/settings.json` の `mcpServers` を読み込まないため、`claude mcp add` で登録します。
-登録後、Claude Code で `/mcp` を開いて `pubmed-remote` を選び、ブラウザで WorkOS AuthKit にログインして認証します。
+Claude Code does not read `mcpServers` in `~/.claude/settings.json`, so register the server with `claude mcp add`.
+After registering, open `/mcp` in Claude Code, choose `pubmed-remote`, and log in to WorkOS AuthKit in the browser to authenticate.
 
-**Anthropic API（Python）**
+**Anthropic API (Python)**
 
 ```python
 import os
@@ -694,20 +717,20 @@ response = client.beta.messages.create(
 )
 ```
 
-MCP コネクタは OAuth のログインもトークンの更新も行いません。WorkOS AuthKit がこのサーバー向けに発行したアクセストークン
-（`aud` が `MCP_RESOURCE_URL` で、`sub` が `ALLOWED_SUBJECTS` に含まれるもの）を呼び出し側で取得して `authorization_token` に渡し、
-有効期限が切れたら取得し直してください。
+The MCP connector neither performs the OAuth login nor refreshes tokens. The caller must get an access token that WorkOS AuthKit issued for this server
+(with `aud` equal to `MCP_RESOURCE_URL` and a `sub` included in `ALLOWED_SUBJECTS`), pass it as `authorization_token`,
+and get a new one when it expires.
 
-テスト用のトークンは MCP Inspector で取得できます（[MCP connector ドキュメント](https://platform.claude.com/docs/en/agents-and-tools/mcp-connector#authentication)）。
+You can get a token for testing with MCP Inspector ([MCP connector documentation](https://platform.claude.com/docs/en/agents-and-tools/mcp-connector#authentication)):
 
-1. `npx @modelcontextprotocol/inspector` を実行
-2. **Transport type** で **Streamable HTTP** を選び、URL に `MCP_RESOURCE_URL` を入力
-3. **Open Auth Settings** → **Quick OAuth Flow** をクリックし、WorkOS AuthKit でログイン
-4. **Authentication complete** まで進めたら、表示された `access_token` の値をコピー
+1. Run `npx @modelcontextprotocol/inspector`
+2. Choose **Streamable HTTP** as the **Transport type** and enter `MCP_RESOURCE_URL` as the URL
+3. Click **Open Auth Settings** → **Quick OAuth Flow** and log in with WorkOS AuthKit
+4. Continue until **Authentication complete**, then copy the displayed `access_token` value
 
 ---
 
-### イメージを更新する（再デプロイ）
+### Updating the image (redeploying)
 
 ```bash
 cd PubMed_MCP
@@ -722,83 +745,83 @@ gcloud run services update pubmed-mcp \
   --image asia-northeast1-docker.pkg.dev/MY_PROJECT_ID/pubmed-mcp/server:latest
 ```
 
-`--image` だけを指定した更新では、環境変数とシークレットの設定はそのまま引き継がれます。
+An update that specifies only `--image` keeps the existing environment variables and secrets.
 
 ---
 
-## 開発コマンド
+## Development commands
 
 ```bash
-npm run build      # TypeScript をコンパイル → dist/
-npm run dev        # tsx で直接実行（開発用）
-npm run cli -- search "CRISPR" --max-results 5   # CLI を tsx で直接実行（開発用）
-npm test           # テストスイートを実行
-npm run typecheck  # 型チェックのみ（コンパイルなし）
-npm run lint       # ESLint を実行
+npm run build      # Compile TypeScript → dist/
+npm run dev        # Run directly with tsx (for development)
+npm run cli -- search "CRISPR" --max-results 5   # Run the CLI directly with tsx (for development)
+npm test           # Run the test suite
+npm run typecheck  # Type-check only (no emit)
+npm run lint       # Run ESLint
 ```
 
-### npm へのリリース（メンテナー向け）
+### Releasing to npm (for maintainers)
 
-GitHub で Release を公開すると、[`.github/workflows/release.yml`](.github/workflows/release.yml) が npm に公開を申請します（[staged publishing](https://docs.npmjs.com/staged-publishing/)）。
-メンテナーが npmjs.com で 2FA を使って承認するまで、新しいバージョンは公開されません。ワークフローや依存パッケージが乗っ取られても、それだけでは公開できないようにするためです。
-npm の [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)（OIDC）を使うため、npm のトークンはリポジトリに保存しません。
+Publishing a Release on GitHub makes [`.github/workflows/release.yml`](.github/workflows/release.yml) stage a publish to npm ([staged publishing](https://docs.npmjs.com/staged-publishing/)).
+The new version is not published until a maintainer approves it on npmjs.com with 2FA. This way, a compromised workflow or dependency cannot publish on its own.
+Because the workflow uses npm [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/) (OIDC), no npm token is stored in the repository.
 
-変更を加える PR では、[`CHANGELOG.md`](CHANGELOG.md) の `[Unreleased]` に内容を追記しておきます。リリースの手順は次のとおりです。
+PRs that make changes add them to `[Unreleased]` in [`CHANGELOG.md`](CHANGELOG.md). To release:
 
-1. リリース用のブランチで `npm version patch --no-git-tag-version`（または `minor` / `major`）を実行し、`package.json` のバージョンを上げる
-   （タグは手順 3 で GitHub が付けるため、ここでは付けません）
-2. `CHANGELOG.md` の `[Unreleased]` の内容を新しいバージョンの見出し（例: `## [1.0.1] - 2026-11-01`）の下に移し、末尾の比較リンクを更新して、PR を作って main にマージする
-3. GitHub で、main を対象に `v<バージョン>`（例: `v1.0.1`）のタグを付けた Release を公開する。リリースノートには `CHANGELOG.md` の該当部分を貼る
-4. ワークフローがタグと `package.json` のバージョンが一致するか確かめ、型チェック・lint・テスト・ビルドを通してから公開を申請する
-5. npmjs.com のパッケージページの **Staged Packages** タブで内容を確認し、**Approve** を押す（2FA が必要）。CLI では `npm stage approve <stage-id>` でも承認できる
+1. On a release branch, run `npm version patch --no-git-tag-version` (or `minor` / `major`) to bump the version in `package.json`
+   (GitHub adds the tag in step 3, so don't tag here)
+2. Move the contents of `[Unreleased]` in `CHANGELOG.md` under a heading for the new version (for example, `## [1.0.1] - 2026-11-01`), update the comparison links at the end, then open a PR and merge it into main
+3. On GitHub, publish a Release targeting main with the tag `v<version>` (for example, `v1.0.1`). Paste the corresponding part of `CHANGELOG.md` into the release notes
+4. The workflow checks that the tag matches the version in `package.json`, runs typecheck, lint, tests, and build, and then stages the publish
+5. Review it on the **Staged Packages** tab of the package page on npmjs.com and click **Approve** (2FA required). You can also approve from the CLI with `npm stage approve <stage-id>`
 
-バージョンの上げ方の目安は、不具合の修正やドキュメントの変更が `patch`、ツールやオプションの追加が `minor`、
-ツール名・引数・出力の形を変えて既存の使い方が動かなくなる変更が `major` です。
+As a rule of thumb, bug fixes and documentation changes are `patch`, new tools or options are `minor`,
+and changes to tool names, arguments, or output shape that break existing usage are `major`.
 
-初回だけは手動で公開します。Trusted Publishing はパッケージが npm に存在しないと設定できないためです。
+The first release is published by hand, because Trusted Publishing can't be configured until the package exists on npm.
 
-1. 2FA を有効にした npm アカウントで `npm login` し、main の最新を `npm publish` で公開する（保留になった場合は上記の手順 5 のとおり承認する）
-2. npmjs.com のパッケージ設定 → **Trusted Publisher** で GitHub Actions を選び、リポジトリ `DJMIMA/PubMed_MCP`、ワークフロー `release.yml` を登録する。
-   **Allowed actions** は `npm stage publish`（常に許可）だけにし、`npm publish` と `npm dist-tag` は許可しない
-3. 同じ設定画面の **Publishing access** で **Require two-factor authentication and disallow tokens** を選ぶ
-
----
-
-## 環境変数
-
-| 変数 | 必須 | 説明 |
-|------|------|------|
-| `NCBI_API_KEY` | 任意 | NCBIのAPIキー。設定するとレートリミットが 3 → 8 req/s になる |
-| `PORT` | 任意 | 設定するとHTTPモードで起動。Cloud Run はこの変数を自動で注入する |
-| `OAUTH_ISSUER` | HTTPモードでは必須 | 認可サーバーの issuer（認可サーバーメタデータの `issuer`）。トークンの `iss` と照合する |
-| `OAUTH_JWKS_URL` | HTTPモードでは必須 | 認可サーバーの JWKS の URL（同じメタデータの `jwks_uri`）。トークンの署名検証に使う |
-| `MCP_RESOURCE_URL` | HTTPモードでは必須 | MCP エンドポイントの公開 URL。トークンの `aud` と照合し、Protected Resource Metadata の `resource` として公開する |
-| `ALLOWED_SUBJECTS` | 任意（推奨） | 接続を許可するトークン `sub` のカンマ区切りリスト。空なら有効なトークンを持つ全ユーザーを許可する |
-
-`OAUTH_ISSUER`・`OAUTH_JWKS_URL`・`MCP_RESOURCE_URL`・`ALLOWED_SUBJECTS` は HTTP モードでのみ使われ、stdio モードでは不要です。
-値の決め方は「[Google Cloud Run へのデプロイ](#google-cloud-run-へのデプロイ)」のステップ 5〜8 を参照してください。
-
-`.env` ファイルを使う場合は `.env.example` をコピーして編集してください。
-本番環境では、`NCBI_API_KEY` は Cloud Run の `--set-secrets` で Secret Manager から渡し、OAuth 関連の値は `--set-env-vars` / `--update-env-vars` で設定してください。
+1. Run `npm login` with an npm account that has 2FA enabled, and publish the latest main with `npm publish` (if it is held for approval, approve it as in step 5 above)
+2. In the package settings on npmjs.com → **Trusted Publisher**, choose GitHub Actions and register the repository `DJMIMA/PubMed_MCP` and the workflow `release.yml`.
+   Under **Allowed actions**, allow only `npm stage publish` (always allowed); do not allow `npm publish` or `npm dist-tag`
+3. On the same settings page, under **Publishing access**, choose **Require two-factor authentication and disallow tokens**
 
 ---
 
-## 参考リンク
+## Environment variables
 
-- [MCP ドキュメント](https://modelcontextprotocol.io/docs)
-- [NCBI E-utilities ドキュメント](https://www.ncbi.nlm.nih.gov/books/NBK25499/)
-- [NCBI APIキー登録](https://www.ncbi.nlm.nih.gov/account/)
-- [PubMed 検索ヘルプ](https://pubmed.ncbi.nlm.nih.gov/help/)
-- [Cloud Run ドキュメント](https://cloud.google.com/run/docs)
-- [Secret Manager ドキュメント](https://cloud.google.com/secret-manager/docs)
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NCBI_API_KEY` | No | NCBI API key. Raises the rate limit from 3 to 8 req/s |
+| `PORT` | No | Starts the server in HTTP mode when set. Cloud Run injects this variable automatically |
+| `OAUTH_ISSUER` | Required in HTTP mode | The authorization server's issuer (`issuer` in its metadata). Compared with the token's `iss` |
+| `OAUTH_JWKS_URL` | Required in HTTP mode | The URL of the authorization server's JWKS (`jwks_uri` in the same metadata). Used to verify token signatures |
+| `MCP_RESOURCE_URL` | Required in HTTP mode | The public URL of the MCP endpoint. Compared with the token's `aud`, and published as `resource` in the Protected Resource Metadata |
+| `ALLOWED_SUBJECTS` | No (recommended) | A comma-separated list of token `sub` values allowed to connect. If empty, every user with a valid token is allowed |
+
+`OAUTH_ISSUER`, `OAUTH_JWKS_URL`, `MCP_RESOURCE_URL`, and `ALLOWED_SUBJECTS` are used only in HTTP mode and are not needed in stdio mode.
+See steps 5–8 of [Deploying to Google Cloud Run](#deploying-to-google-cloud-run) for how to choose their values.
+
+To use a `.env` file, copy `.env.example` and edit it.
+In production, pass `NCBI_API_KEY` from Secret Manager with Cloud Run's `--set-secrets`, and set the OAuth values with `--set-env-vars` / `--update-env-vars`.
 
 ---
 
-## ライセンス
+## References
 
-このリポジトリのソースコードは [MIT License](LICENSE) で公開しています。
+- [MCP documentation](https://modelcontextprotocol.io/docs)
+- [NCBI E-utilities documentation](https://www.ncbi.nlm.nih.gov/books/NBK25499/)
+- [NCBI API key registration](https://www.ncbi.nlm.nih.gov/account/)
+- [PubMed search help](https://pubmed.ncbi.nlm.nih.gov/help/)
+- [Cloud Run documentation](https://cloud.google.com/run/docs)
+- [Secret Manager documentation](https://cloud.google.com/secret-manager/docs)
 
-- このプロジェクトは NCBI / NLM（米国国立医学図書館）とは関係のない非公式のツールです。
-- PubMed / PMC へのアクセスには NCBI の E-utilities を使います。利用時は [NCBI の免責事項・著作権表示を含む利用ポリシー](https://www.ncbi.nlm.nih.gov/home/about/policies/)（NCBI Disclaimer and Copyright notice）と [E-utilities の利用ガイドライン](https://www.ncbi.nlm.nih.gov/books/NBK25497/) に従ってください。
-- ガイドラインに従い、NCBI へのリクエストにはこのソフトウェアの名前（`tool=pubmed-mcp`）と開発者の連絡先（`email`）を付けています。このコードを改変して別のソフトウェアとして配布する場合は、`src/pubmed/client.ts` の `TOOL_NAME` と `TOOL_EMAIL` を自分の値に変えてください。
-- MIT License が適用されるのはこのソフトウェアのコードだけです。取得した抄録や全文の著作権は各著者・出版社に帰属します。論文ごとのライセンスは `get_copyright_status` で確認できます。
+---
+
+## License
+
+The source code in this repository is released under the [MIT License](LICENSE).
+
+- This is an unofficial tool, not affiliated with NCBI or NLM (the U.S. National Library of Medicine).
+- Access to PubMed / PMC goes through NCBI's E-utilities. When using it, follow [NCBI's website and data usage policies, including the Disclaimer and Copyright notice](https://www.ncbi.nlm.nih.gov/home/about/policies/), and the [E-utilities usage guidelines](https://www.ncbi.nlm.nih.gov/books/NBK25497/).
+- As the guidelines require, requests to NCBI include this software's name (`tool=pubmed-mcp`) and the developer's contact address (`email`). If you modify this code and distribute it as different software, change `TOOL_NAME` and `TOOL_EMAIL` in `src/pubmed/client.ts` to your own values.
+- The MIT License covers only this software's code. Copyright in retrieved abstracts and full texts belongs to their authors and publishers. Check each article's license with `get_copyright_status`.
