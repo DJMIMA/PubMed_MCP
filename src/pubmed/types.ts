@@ -1,6 +1,7 @@
 /**
  * TypeScript types for PubMed MCP tool responses.
- * These match the exact API surface of the official Anthropic PubMed connector.
+ * Tool names follow the Anthropic PubMed connector, but these shapes are this
+ * server's own and are not kept in sync with that connector.
  */
 
 // ─── search_articles ────────────────────────────────────────────────────────
