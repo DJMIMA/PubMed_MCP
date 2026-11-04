@@ -11,6 +11,7 @@
 
 import { parseArgs } from 'node:util';
 import { NcbiClient } from '../pubmed/client.js';
+import { packageVersion } from '../version.js';
 import {
   COMMANDS,
   UsageError,
@@ -46,6 +47,10 @@ export async function runCli(
   }
   if (name === '-h' || name === '--help') {
     io.stdout(globalHelp());
+    return 0;
+  }
+  if (name === '-v' || name === '--version') {
+    io.stdout(`${packageVersion()}\n`);
     return 0;
   }
   if (name === 'help') {
@@ -168,6 +173,7 @@ ${commandList}
 Options:
   -o, --output <file>  Write the JSON to <file> instead of stdout
   -h, --help           Show help; "pubmed <command> --help" for a command
+  -v, --version        Show the version
 
 IDs are given as arguments separated by spaces or commas, or read from stdin
 with "-". Long lists are split into batches and sent one at a time.

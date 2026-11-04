@@ -4,6 +4,7 @@
  * mock, so no network requests are made.
  */
 
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -11,6 +12,21 @@ import type { NcbiClient } from '../src/pubmed/client.js';
 import { createServer } from '../src/server.js';
 
 describe('createServer', () => {
+  it('reports the package.json version in serverInfo', async () => {
+    const { version } = JSON.parse(
+      readFileSync(new URL('../package.json', import.meta.url), 'utf8')
+    ) as { version: string };
+
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await createServer({} as NcbiClient).connect(serverTransport);
+    const mcpClient = new Client({ name: 'test-client', version: '1.0.0' });
+    await mcpClient.connect(clientTransport);
+    const serverInfo = mcpClient.getServerVersion();
+    await mcpClient.close();
+
+    expect(serverInfo).toEqual({ name: 'pubmed', version });
+  });
+
   // HTTP mode relies on this: every per-request server shares one client.
   it('sends NCBI requests through the injected client', async () => {
     const mockEsearch = vi.fn().mockResolvedValue({

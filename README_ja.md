@@ -306,7 +306,7 @@ PMID・年・タイトルだけを取り出すと 3.2 KB（約 1/34）になり�
 npm install -g @djmima/pubmed-mcp
 ```
 
-`pubmed --help` が表示されれば完了です。
+`pubmed --help` が表示されれば完了です。インストールされているバージョンは `pubmed --version`（または `-v`）で確認できます。
 
 NCBI API キーは環境変数 `NCBI_API_KEY` から読み込みます。シェルの設定ファイル（`~/.bashrc`、`~/.zshrc` など）に
 `export NCBI_API_KEY=your_api_key_here` を書くか、Windows では `setx NCBI_API_KEY your_api_key_here` を一度実行してから

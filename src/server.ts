@@ -8,6 +8,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { NcbiClient } from './pubmed/client.js';
+import { packageVersion } from './version.js';
 
 import {
   searchArticlesSchema,
@@ -48,7 +49,7 @@ import {
 export function createServer(client: NcbiClient = new NcbiClient()): McpServer {
   const server = new McpServer({
     name: 'pubmed',
-    version: '1.0.0',
+    version: packageVersion(),
   });
 
   // ── search_articles ──────────────────────────────────────────────────────

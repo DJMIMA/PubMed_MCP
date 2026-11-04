@@ -3,6 +3,7 @@
  * status. The NCBI client is mocked — no real network requests are made.
  */
 
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NcbiApiError, type NcbiClient } from '../../src/pubmed/client.js';
 import { IMPORTANT_LEGAL_NOTICE } from '../../src/pubmed/types.js';
@@ -96,6 +97,18 @@ beforeEach(() => {
 // ─── Help and usage ──────────────────────────────────────────────────────────
 
 describe('help and usage', () => {
+  it.each(['-v', '--version'])('prints the package.json version on %s', async (flag) => {
+    const { version } = JSON.parse(
+      readFileSync(new URL('../../package.json', import.meta.url), 'utf8')
+    ) as { version: string };
+    const { code, io } = await run([flag]);
+
+    expect(code).toBe(0);
+    expect(io.out).toBe(`${version}\n`);
+    expect(io.err).toBe('');
+    expect(mockClient.esearch).not.toHaveBeenCalled();
+  });
+
   it('lists every command with its MCP tool on --help', async () => {
     const { code, io } = await run(['--help']);
 
