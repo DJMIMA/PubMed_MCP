@@ -8,6 +8,13 @@
 import { z } from 'zod';
 import type { NcbiClient, ElinkLinksetDb } from '../pubmed/client.js';
 import type { FindRelatedArticlesResponse, Linkset } from '../pubmed/types.js';
+import { pmidSchema } from '../utils/ids.js';
+
+/**
+ * PMIDs per request, kept short because ELink takes them in the URL.
+ * The CLI splits longer lists into batches of this size.
+ */
+export const MAX_RELATED_PMIDS = 200;
 
 const LINK_TYPES = [
   'similar_articles',
@@ -20,9 +27,13 @@ export type FindRelatedLinkType = (typeof LINK_TYPES)[number];
 
 export const findRelatedArticlesSchema = {
   pmids: z
-    .array(z.string().min(1))
+    .array(pmidSchema)
     .min(1)
-    .describe('Array of source PubMed IDs to find related articles for.'),
+    .max(MAX_RELATED_PMIDS)
+    .describe(
+      'Array of source PubMed IDs to find related articles for. ' +
+        `Maximum ${MAX_RELATED_PMIDS} PMIDs per request.`
+    ),
   link_type: z
     .enum(LINK_TYPES)
     .default('similar_articles')

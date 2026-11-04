@@ -11,6 +11,7 @@ import { z } from 'zod';
 import type { NcbiClient } from '../pubmed/client.js';
 import type { GetFullTextArticleResponse, FullTextArticle } from '../pubmed/types.js';
 import { IMPORTANT_LEGAL_NOTICE } from '../pubmed/types.js';
+import { pmcidSchema } from '../utils/ids.js';
 import { parsePmcEfetchXml } from '../utils/xml.js';
 
 /** PMCIDs per request; the CLI splits longer lists into batches of this size. */
@@ -18,7 +19,7 @@ export const MAX_FULL_TEXT_IDS = 20;
 
 export const getFullTextArticleSchema = {
   pmc_ids: z
-    .array(z.string().min(1))
+    .array(pmcidSchema)
     .min(1)
     .max(MAX_FULL_TEXT_IDS)
     .describe(

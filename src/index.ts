@@ -11,7 +11,8 @@
  *
  *   HTTP mode (Cloud Run / remote deployment):
  *     Activated when the PORT environment variable is set.
- *     Starts an Express server that handles Streamable HTTP transport at /mcp.
+ *     Starts an Express server (see http.ts) that handles Streamable HTTP
+ *     transport at /mcp.
  *     Used by remote clients: Claude custom connectors and the Anthropic API
  *     MCP connector, which can only reach servers over HTTP.
  *     /mcp requires an OAuth 2.0 Bearer token (see auth.ts); /health and
@@ -23,19 +24,28 @@
  *   NCBI_API_KEY     — NCBI API key; raises rate limit from 3 → 8 req/s
  *                      Register free at https://www.ncbi.nlm.nih.gov/account/
  *   PORT             — When set, enables HTTP mode on the specified port.
- *   OAUTH_ISSUER, OAUTH_JWKS_URL, MCP_RESOURCE_URL
+ *   OAUTH_ISSUER, OAUTH_JWKS_URL, MCP_RESOURCE_URL, ALLOWED_SUBJECTS
  *                    — Required in HTTP mode; startup fails without them.
- *   ALLOWED_SUBJECTS — Optional allowlist of token subjects (HTTP mode).
- *                      See auth.ts for all four.
+ *                      See auth.ts.
  */
 
-// Load .env file if present. Silently skipped in production where env vars
-// are injected by the runtime (Cloud Run, Docker --env, etc.).
+// Load the .env file in the package root (the repository root in a source
+// checkout) if present. Silently skipped in production where env vars are
+// injected by the runtime (Cloud Run, Docker --env, etc.). Never read from the
+// current directory: MCP clients start the server in whatever project is
+// open, and a .env there could otherwise set PORT (switching to HTTP mode) or
+// HTTPS_PROXY with NODE_TLS_REJECT_UNAUTHORIZED=0, letting a proxy read the
+// API key and alter NCBI responses. Variables already set in the environment
+// take precedence.
 // quiet: dotenv >=17 logs to stdout by default, which corrupts the stdio
 // JSON-RPC stream.
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { config as loadDotenv } from 'dotenv';
-import type { Request, Response, NextFunction } from 'express';
-loadDotenv({ quiet: true });
+loadDotenv({
+  path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.env'),
+  quiet: true,
+});
 
 import { createServer } from './server.js';
 import { NcbiClient } from './pubmed/client.js';
@@ -59,60 +69,9 @@ async function main(): Promise<void> {
 const sharedNcbiClient = new NcbiClient();
 
 async function startHttpServer(port: number): Promise<void> {
-  const { default: express } = await import('express');
-  const { StreamableHTTPServerTransport } = await import(
-    '@modelcontextprotocol/sdk/server/streamableHttp.js'
-  );
-
-  const { protectedResourceMetadata, requireAuth } = await import('./auth.js');
-
-  const app = express();
-  app.use(express.json());
-
-  // OAuth 2.0 Protected Resource Metadata (RFC 9728) — public so the client can
-  // discover the authorization server. No token required.
-  app.get('/.well-known/oauth-protected-resource', protectedResourceMetadata);
-
-  // Return JSON (not HTML) for malformed request bodies.
-  app.use(
-    (
-      err: Error & { type?: string; status?: number },
-      _req: Request,
-      res: Response,
-      next: NextFunction,
-    ) => {
-      if (err.type === 'entity.parse.failed') {
-        res.status(400).json({ error: 'Invalid JSON body' });
-        return;
-      }
-      next(err);
-    },
-  );
-
-  // MCP Streamable HTTP — handles both POST (client→server) and GET (SSE stream).
-  // SDK v1.x: stateless transports cannot be reused across requests.
-  // A new transport and server instance must be created for every request.
-  app.all('/mcp', requireAuth, (req, res) => {
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined, // stateless mode
-    });
-    const mcpServer = createServer(sharedNcbiClient);
-    mcpServer
-      .connect(transport)
-      .then(() => transport.handleRequest(req, res, req.body as unknown))
-      .catch((err) => {
-        process.stderr.write(`[http] handleRequest error: ${String(err)}\n`);
-        if (!res.headersSent) {
-          res.status(500).json({ error: 'Internal server error' });
-        }
-      });
-  });
-
-  // Health check endpoint — used by Cloud Run readiness/liveness probes.
-  // No auth required so Cloud Run can always reach it.
-  app.get('/health', (_req, res) => {
-    res.send('ok');
-  });
+  // Imported only in HTTP mode: auth.ts requires the OAuth variables.
+  const { createHttpApp } = await import('./http.js');
+  const app = createHttpApp(sharedNcbiClient);
 
   const httpServer = app.listen(port, () => {
     process.stderr.write(`PubMed MCP server running on HTTP port ${port}\n`);

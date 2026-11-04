@@ -20,6 +20,7 @@ import {
 import {
   findRelatedArticles,
   findRelatedArticlesSchema,
+  MAX_RELATED_PMIDS,
 } from '../tools/findRelatedArticles.js';
 import {
   lookupArticleByCitation,
@@ -195,9 +196,6 @@ Example:
 
 // ─── related ────────────────────────────────────────────────────────────────
 
-/** ELink takes the IDs in the URL, so keep each request's list short. */
-const RELATED_BATCH_SIZE = 200;
-
 const related: Command = {
   name: 'related',
   tool: 'find_related_articles',
@@ -209,7 +207,7 @@ const related: Command = {
   help: `Usage: pubmed related <pmid>... | - [options]
 
 Find linked records for each PMID with NCBI ELink (same JSON as
-find_related_articles). Lists longer than ${RELATED_BATCH_SIZE} PMIDs are split into batches.
+find_related_articles). Lists longer than ${MAX_RELATED_PMIDS} PMIDs are split into batches.
 
 Options:
   --link-type <type>  similar_articles (default)  similar PubMed articles
@@ -230,7 +228,7 @@ Example:
     const pmids = await readIds(input, PMID);
     const linkType = input.values['link-type'];
     const maxResults = intOption(input, 'max-results');
-    const batches = chunk(pmids, RELATED_BATCH_SIZE).map((batch) =>
+    const batches = chunk(pmids, MAX_RELATED_PMIDS).map((batch) =>
       validate(findRelatedArticlesSchema, {
         pmids: batch,
         link_type: linkType,

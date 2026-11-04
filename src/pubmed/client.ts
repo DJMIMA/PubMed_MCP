@@ -27,6 +27,20 @@ const HTTPS_AGENT = new https.Agent({
   keepAlive: true,
 });
 
+/**
+ * Abort a request when NCBI sends no response headers, or the connection
+ * goes idle, for this long. Without it a stalled connection hangs the tool
+ * call (and in HTTP mode, the client's request) indefinitely.
+ */
+const REQUEST_TIMEOUT_MS = 60_000;
+
+/** Options shared by every NCBI request. */
+const REQUEST_OPTIONS = {
+  httpsAgent: HTTPS_AGENT,
+  timeout: REQUEST_TIMEOUT_MS,
+  beforeRedirect: refuseRedirectOffNcbi,
+};
+
 const TOOL_NAME = 'pubmed-mcp';
 /**
  * NCBI requires `email` to be the software developer's address, not an end
@@ -132,7 +146,7 @@ export class NcbiClient {
           await sleep(retryDelayMs(err, attempt));
           continue;
         }
-        throw wrapAxiosError(err, operation);
+        throw wrapAxiosError(err, operation, this.apiKey);
       }
     }
   }
@@ -153,7 +167,7 @@ export class NcbiClient {
   }): Promise<EsearchResult> {
     const response = await this.request('esearch', () =>
       axios.get(`${NCBI_BASE_URL}esearch.fcgi`, {
-        httpsAgent: HTTPS_AGENT,
+        ...REQUEST_OPTIONS,
         params: {
           ...this.commonParams(),
           db: 'pubmed',
@@ -185,7 +199,7 @@ export class NcbiClient {
     const idStr = Array.isArray(params.id) ? params.id.join(',') : params.id;
     const response = await this.request('efetch', () =>
       axios.get(`${NCBI_BASE_URL}efetch.fcgi`, {
-        httpsAgent: HTTPS_AGENT,
+        ...REQUEST_OPTIONS,
         params: {
           ...this.commonParams(),
           db: params.db,
@@ -222,7 +236,7 @@ export class NcbiClient {
     }
     const response = await this.request('elink', () =>
       axios.get(`${NCBI_BASE_URL}elink.fcgi?${searchParams.toString()}`, {
-        httpsAgent: HTTPS_AGENT,
+        ...REQUEST_OPTIONS,
       })
     );
     return response.data as ElinkResponse;
@@ -236,12 +250,14 @@ export class NcbiClient {
     const bdata = citations
       .map(
         (c) =>
-          `${c.journal}|${c.year}|${c.volume}|${c.first_page}|${c.author}|${c.key}|`
+          [c.journal, c.year, c.volume, c.first_page, c.author, c.key]
+            .map(bdataField)
+            .join('|') + '|'
       )
       .join('\r');
     const response = await this.request('ecitmatch', () =>
       axios.get(`${NCBI_BASE_URL}ecitmatch.cgi`, {
-        httpsAgent: HTTPS_AGENT,
+        ...REQUEST_OPTIONS,
         params: {
           ...this.commonParams(),
           db: 'pubmed',
@@ -273,7 +289,7 @@ export class NcbiClient {
   }): Promise<IdConvResponse> {
     const response = await this.request('idConvert', () =>
       axios.get(PMC_ID_CONVERTER_URL, {
-        httpsAgent: HTTPS_AGENT,
+        ...REQUEST_OPTIONS,
         params: {
           ...this.commonParams(),
           format: 'json',
@@ -283,7 +299,7 @@ export class NcbiClient {
         },
       })
     );
-    return sanitizeIdConvResponse(response.data as IdConvResponse);
+    return sanitizeIdConvResponse(response.data as IdConvResponse, this.apiKey);
   }
 }
 
@@ -357,7 +373,7 @@ export interface IdConvResponse {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function wrapAxiosError(err: unknown, operation: string): Error {
+function wrapAxiosError(err: unknown, operation: string, apiKey: string | undefined): Error {
   if (err instanceof NcbiApiError || err instanceof NcbiNetworkError) {
     return err;
   }
@@ -365,15 +381,15 @@ function wrapAxiosError(err: unknown, operation: string): Error {
     const status = err.response?.status;
     if (status !== undefined) {
       const body = describeResponseBody(err.response?.data);
-      const message = redactApiKey(body || err.message);
+      const message = redactApiKey(body || err.message, apiKey);
       return new NcbiApiError(
         `NCBI ${operation} returned HTTP ${status}: ${message}`,
         status
       );
     }
+    // The AxiosError is not kept as the cause: its config holds the API key.
     return new NcbiNetworkError(
-      `Network error during NCBI ${operation}: ${err.message}`,
-      err
+      `Network error during NCBI ${operation}: ${redactApiKey(err.message, apiKey)}`
     );
   }
   if (err instanceof Error) return err;
@@ -419,16 +435,39 @@ function retryDelayMs(err: unknown, attempt: number): number {
   return fallback;
 }
 
+/**
+ * Refuse a redirect that leaves NCBI or drops HTTPS. The API key travels in
+ * the query string, which redirects keep (the ID Converter redirects to
+ * pmc.ncbi.nlm.nih.gov with the query intact). Checks href rather than
+ * hostname, which axios rewrites to the proxy's when a proxy is configured.
+ */
+function refuseRedirectOffNcbi(options: Record<string, unknown>): void {
+  const target = new URL(String(options.href));
+  const onNcbi =
+    target.hostname === 'ncbi.nlm.nih.gov' || target.hostname.endsWith('.ncbi.nlm.nih.gov');
+  if (target.protocol !== 'https:' || !onNcbi) {
+    throw new Error(`refused redirect to ${target.protocol}//${target.host}`);
+  }
+}
+
+/** "|" separates ECitMatch fields and "\r" separates citations, so neither may appear in a field. */
+function bdataField(value: string | number): string {
+  return String(value).replace(/[|\r\n]+/g, ' ');
+}
+
 function looksLikeHtml(text: string): boolean {
   return /^\s*(?:<!doctype\s+html|<html\b)/i.test(text);
 }
 
-function sanitizeIdConvResponse(response: IdConvResponse): IdConvResponse {
+function sanitizeIdConvResponse(
+  response: IdConvResponse,
+  apiKey: string | undefined
+): IdConvResponse {
   return {
     ...response,
     request: {
       ...response.request,
-      echo: redactApiKey(response.request.echo),
+      echo: redactApiKey(response.request.echo, apiKey),
     },
     records: response.records.map((record) => ({
       ...record,
@@ -442,9 +481,11 @@ function sanitizeIdConvResponse(response: IdConvResponse): IdConvResponse {
   };
 }
 
-function redactApiKey(value: string): string {
+function redactApiKey(value: string, apiKey: string | undefined): string {
   // NCBI echoes the key both as a query param and as "api-key" in JSON error bodies.
-  return value
+  const redacted = value
     .replace(/(^|[?&])(api_key=)[^&\s]+/gi, '$1$2<redacted>')
     .replace(/("api[-_]key"\s*:\s*")[^"]*/gi, '$1<redacted>');
+  // Any other echo of the key, such as one in an HTML-escaped URL.
+  return apiKey ? redacted.split(apiKey).join('<redacted>') : redacted;
 }

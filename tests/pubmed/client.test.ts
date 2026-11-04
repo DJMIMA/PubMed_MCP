@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import axios from 'axios';
-import { NcbiClient, NcbiApiError } from '../../src/pubmed/client.js';
+import { NcbiClient, NcbiApiError, NcbiNetworkError } from '../../src/pubmed/client.js';
 
 vi.mock('axios');
 
@@ -170,6 +170,28 @@ describe('NcbiClient', () => {
       expect(call[1].responseType).toBe('text');
     });
 
+    it('keeps "|" and line breaks inside a field from splitting the citation', async () => {
+      mockedAxios.get = vi.fn().mockResolvedValue({
+        data: '',
+        headers: { 'content-type': 'text/plain' },
+        status: 200,
+      });
+
+      await client.ecitmatch([
+        {
+          journal: 'J|Med\r\nX',
+          year: 2020,
+          volume: '1',
+          first_page: '2',
+          author: 'Smith|1999',
+          key: 'k\r1',
+        },
+      ]);
+
+      const call = (mockedAxios.get as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(call[1].params.bdata).toBe('J Med X|2020|1|2|Smith 1999|k 1|');
+    });
+
     it('rejects HTML responses instead of passing them to citation parsing', async () => {
       mockedAxios.get = vi.fn().mockResolvedValue({
         data: '<html><title>Batch Citation Matcher - PubMed</title></html>',
@@ -269,6 +291,98 @@ describe('NcbiClient', () => {
         expect(agent.options.ALPNProtocols).toEqual(['http/1.1']);
         expect(agent.keepAlive).toBe(true);
       }
+    });
+  });
+
+  // ── timeouts, redirects, and API key redaction ────────────────────────────
+
+  describe('request safety', () => {
+    const citation = {
+      journal: 'Nature',
+      year: 2021,
+      volume: '596',
+      first_page: '583',
+      author: 'Jumper',
+      key: '1',
+    };
+
+    it('sets a timeout and a redirect guard on every request', async () => {
+      mockedAxios.get = vi
+        .fn()
+        .mockResolvedValueOnce({ data: { esearchresult: { idlist: [] } } })
+        .mockResolvedValueOnce({ data: '<xml/>' })
+        .mockResolvedValueOnce({ data: { linksets: [] } })
+        .mockResolvedValueOnce({ data: '', headers: {} })
+        .mockResolvedValueOnce({ data: { request: { echo: '' }, records: [] } });
+
+      await client.esearch({ term: 'x' });
+      await client.efetch({ db: 'pubmed', id: '1' });
+      await client.elink({ dbfrom: 'pubmed', id: ['1'], linkname: 'pubmed_pubmed' });
+      await client.ecitmatch([citation]);
+      await client.idConvert({ ids: ['1'] });
+
+      const calls = (mockedAxios.get as ReturnType<typeof vi.fn>).mock.calls;
+      expect(calls).toHaveLength(5);
+      for (const call of calls) {
+        expect(call[1].timeout).toBe(60_000);
+        expect(call[1].beforeRedirect).toBeTypeOf('function');
+      }
+    });
+
+    it('follows redirects only to NCBI over HTTPS', async () => {
+      mockedAxios.get = vi.fn().mockResolvedValue({ data: '<xml/>' });
+      await client.efetch({ db: 'pmc', id: '1' });
+      const guard = (mockedAxios.get as ReturnType<typeof vi.fn>).mock.calls[0][1]
+        .beforeRedirect as (options: Record<string, unknown>) => void;
+
+      // The ID Converter's real redirect.
+      expect(() =>
+        guard({ href: 'https://pmc.ncbi.nlm.nih.gov/tools/idconv/api/v1/articles/?ids=1&api_key=k' })
+      ).not.toThrow();
+
+      for (const href of [
+        'http://pmc.ncbi.nlm.nih.gov/?api_key=k',
+        'https://example.com/?api_key=k',
+        'https://ncbi.nlm.nih.gov.example.com/?api_key=k',
+        'https://evilncbi.nlm.nih.gov/?api_key=k',
+      ]) {
+        expect(() => guard({ href })).toThrow(/^refused redirect to https?:\/\/[^?]+$/);
+      }
+    });
+
+    it('redacts the API key from network errors and drops the axios error', async () => {
+      vi.spyOn(axios, 'isAxiosError').mockReturnValue(true);
+      mockedAxios.get = vi.fn().mockRejectedValue(
+        Object.assign(new Error('socket hang up for /esearch.fcgi?api_key=test-api-key'), {
+          isAxiosError: true,
+          config: { params: { api_key: 'test-api-key' } },
+        })
+      );
+
+      const error = await client.esearch({ term: 'x' }).catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(NcbiNetworkError);
+      expect((error as Error).message).not.toContain('test-api-key');
+      expect((error as NcbiNetworkError).cause).toBeUndefined();
+    });
+
+    it('redacts the API key wherever an error body echoes it', async () => {
+      vi.spyOn(axios, 'isAxiosError').mockReturnValue(true);
+      mockedAxios.get = vi.fn().mockRejectedValue(
+        Object.assign(new Error('Request failed with status code 502'), {
+          isAxiosError: true,
+          response: {
+            status: 502,
+            data: '<a href="/efetch.fcgi?db=pmc&amp;api_key=test-api-key&amp;id=1">Retry</a>',
+          },
+        })
+      );
+
+      const error = await client.efetch({ db: 'pmc', id: '1' }).catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(NcbiApiError);
+      expect((error as Error).message).toContain('api_key=<redacted>');
+      expect((error as Error).message).not.toContain('test-api-key');
     });
   });
 

@@ -8,13 +8,14 @@
 import { z } from 'zod';
 import type { NcbiClient } from '../pubmed/client.js';
 import type { ConvertArticleIdsResponse } from '../pubmed/types.js';
+import { articleIdSchema } from '../utils/ids.js';
 
 /** IDs per request; the CLI splits longer lists into batches of this size. */
 export const MAX_CONVERT_IDS = 200;
 
 export const convertArticleIdsSchema = {
   ids: z
-    .array(z.string().min(1))
+    .array(articleIdSchema)
     .min(1)
     .max(MAX_CONVERT_IDS)
     .describe(
