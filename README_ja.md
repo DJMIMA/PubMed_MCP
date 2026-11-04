@@ -119,8 +119,8 @@ APIキーを取得するとレートリミットが 3 → 8 req/s に向上し�
 2. 環境変数 `NCBI_API_KEY` にセット（後述のクライアント別設定を参照）
 
 MCP クライアントからローカルで起動する場合は、クライアント設定の `env` でキーを渡してください。
-`.env` は起動時のカレントディレクトリから読み込まれるため、クライアント経由の起動では
-プロジェクト直下の `.env` が読まれないことがあります。
+サーバーが `.env` を読み込むのはパッケージ自身のルート（[ソースからビルドした](#ソースからビルドする)場合はリポジトリ直下）だけで、
+起動時のカレントディレクトリからは読み込みません。そのため、MCP クライアントで開いているプロジェクトの `.env` で設定が変わることはありません。
 
 APIキーは、このサーバーを運用する個人または組織が所有・管理するものを設定してください。
 リポジトリにはAPIキーを同梱しません。レスポンス中にNCBI APIの `echo` が含まれる場合も、
@@ -279,14 +279,14 @@ PORT=8080 npm run dev
 # → http://localhost:8080/health ヘルスチェック
 ```
 
-HTTP モードは起動時に `OAUTH_ISSUER`・`OAUTH_JWKS_URL`・`MCP_RESOURCE_URL` を読み込み、1 つでも未設定だと次のエラーで終了します。
+HTTP モードは起動時に `OAUTH_ISSUER`・`OAUTH_JWKS_URL`・`MCP_RESOURCE_URL`・`ALLOWED_SUBJECTS` を読み込み、1 つでも未設定だと次のエラーで終了します。
 
 ```
 Fatal error: Error: Missing required environment variable: OAUTH_ISSUER
 ```
 
 `.env` にこれらの値を設定してから起動してください（各値の意味は「[環境変数](#環境変数)」を参照）。
-`/health` や 401 応答を確かめるだけなら URL 形式の仮の値でも起動できますが、`/mcp` を実際に呼び出すには
+`/health` や 401 応答を確かめるだけなら仮の値（URL の変数は URL 形式）でも起動できますが、`/mcp` を実際に呼び出すには
 `MCP_RESOURCE_URL` を `aud` として発行されたアクセストークンが必要です。認証なしでツールを試す場合は stdio モードを使ってください。
 
 ---
@@ -543,9 +543,9 @@ gcloud run deploy pubmed-mcp \
 | `OAUTH_ISSUER` | 認可サーバーメタデータの `issuer`。トークンの `iss` と完全一致で照合されるので、末尾の `/` の有無も含めてそのままコピーする |
 | `OAUTH_JWKS_URL` | 同じメタデータの `jwks_uri`。トークンの署名検証に使う公開鍵の URL |
 | `MCP_RESOURCE_URL` | ステップ 5 で決めた MCP エンドポイントの URL。トークンの `aud` と照合し、`/.well-known/oauth-protected-resource` の `resource` としても公開される |
-| `ALLOWED_SUBJECTS` | 接続を許可するユーザー ID（トークンの `sub`）のカンマ区切りリスト。空にすると、AuthKit で有効なトークンを取得できるユーザー全員が接続できる |
+| `ALLOWED_SUBJECTS` | 接続を許可するユーザー ID（トークンの `sub`）のカンマ区切りリスト。必須（ないと、AuthKit で有効なトークンを取得できるユーザー全員が接続できてしまう） |
 
-`OAUTH_ISSUER`・`OAUTH_JWKS_URL`・`MCP_RESOURCE_URL` のどれかが欠けていると、サーバーは起動時に
+`OAUTH_ISSUER`・`OAUTH_JWKS_URL`・`MCP_RESOURCE_URL`・`ALLOWED_SUBJECTS` のどれかが欠けていると、サーバーは起動時に
 `Missing required environment variable: ...` で終了し、デプロイは失敗します。失敗した場合は Cloud Run のログでこのメッセージを確認してください
 （Cloud Console で設定した場合は、変数名の前後に空白が入っていないかも確認してください）。
 
@@ -621,10 +621,10 @@ curl.exe -i "$CLOUD_RUN_URL/mcp" -X POST -H "Content-Type: application/json" `
 ### ステップ 8 — 自分のユーザー ID を ALLOWED_SUBJECTS に登録
 
 Dynamic Client Registration では誰でも OAuth クライアントを登録できるため、`ALLOWED_SUBJECTS` で接続できるユーザーを限定します
-（空のままだと AuthKit にログインできるユーザー全員が `/mcp` を使えます。AuthKit でサインアップを許可している場合は第三者も含まれます）。
+（ないと AuthKit にログインできるユーザー全員が `/mcp` を使えてしまい、AuthKit でサインアップを許可している場合は第三者も含まれるため、未設定ではサーバーが起動しません）。
 設定する値はアクセストークンの `sub`（WorkOS のユーザー ID。`user_` で始まる値）です。
 
-`ALLOWED_SUBJECTS` が空のときは `sub` がログに記録されません。そのため、仮の値を入れた状態で一度接続し、拒否されたときのログから確認します。
+サーバーは拒否したユーザーの `sub` をログに記録します。そのため、仮の値を入れた状態で一度接続し、拒否されたときのログから確認します。
 
 1. 後述の「[クライアント別の接続設定](#クライアント別の接続設定)」の手順で claude.ai などから接続し、WorkOS AuthKit でログインします。
    `sub` が `ALLOWED_SUBJECTS` に含まれていないため接続は 403 で失敗し、サーバーのログに `[auth] forbidden subject: ...` が記録されます。
@@ -796,7 +796,7 @@ npm の [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)（OIDC�
 | `OAUTH_ISSUER` | HTTPモードでは必須 | 認可サーバーの issuer（認可サーバーメタデータの `issuer`）。トークンの `iss` と照合する |
 | `OAUTH_JWKS_URL` | HTTPモードでは必須 | 認可サーバーの JWKS の URL（同じメタデータの `jwks_uri`）。トークンの署名検証に使う |
 | `MCP_RESOURCE_URL` | HTTPモードでは必須 | MCP エンドポイントの公開 URL。トークンの `aud` と照合し、Protected Resource Metadata の `resource` として公開する |
-| `ALLOWED_SUBJECTS` | 任意（推奨） | 接続を許可するトークン `sub` のカンマ区切りリスト。空なら有効なトークンを持つ全ユーザーを許可する |
+| `ALLOWED_SUBJECTS` | HTTPモードでは必須 | 接続を許可するトークン `sub` のカンマ区切りリスト |
 
 `OAUTH_ISSUER`・`OAUTH_JWKS_URL`・`MCP_RESOURCE_URL`・`ALLOWED_SUBJECTS` は HTTP モードでのみ使われ、stdio モードでは不要です。
 値の決め方は「[Google Cloud Run へのデプロイ](#google-cloud-run-へのデプロイ)」のステップ 5〜8 を参照してください。

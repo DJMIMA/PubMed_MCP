@@ -12,7 +12,8 @@
  *      JWKS (signature, issuer, audience, expiry).
  *   3. Restricts access to an allowlist of token subjects — since DCR lets
  *      anyone register a client, this is what makes the server *yours only*.
- *      With the allowlist empty, any valid token is accepted.
+ *      The allowlist is required, so a missing value cannot open the server
+ *      to everyone who can sign in to the authorization server.
  *
  * Required environment variables (copy issuer/jwks from the provider's
  *   https://<your-authkit-domain>/.well-known/oauth-authorization-server ):
@@ -23,13 +24,10 @@
  *                       https://pubmed-mcp-PROJECT_NUMBER.asia-northeast1.run.app/mcp);
  *                       used as the expected token `aud` and as the resource
  *                       identifier
- *
- * Optional:
  *   ALLOWED_SUBJECTS  — comma-separated token `sub` values (user IDs) permitted
- *                       to connect. When empty, nothing is logged, so to find
- *                       your own id deploy with a placeholder value first:
- *                       rejected subjects are logged as
- *                       "[auth] forbidden subject: <sub>". Then set the real
+ *                       to connect. To find your own id, deploy with a
+ *                       placeholder value first: rejected subjects are logged
+ *                       as "[auth] forbidden subject: <sub>". Then set the real
  *                       value with `gcloud run services update --update-env-vars`.
  */
 
@@ -40,10 +38,13 @@ const ISSUER = requireEnv('OAUTH_ISSUER');
 const JWKS_URL = requireEnv('OAUTH_JWKS_URL');
 const RESOURCE = requireEnv('MCP_RESOURCE_URL');
 
-const ALLOWED_SUBJECTS = (process.env.ALLOWED_SUBJECTS ?? '')
+const ALLOWED_SUBJECTS = requireEnv('ALLOWED_SUBJECTS')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
+if (ALLOWED_SUBJECTS.length === 0) {
+  throw new Error('ALLOWED_SUBJECTS must list at least one token subject');
+}
 
 // Metadata lives at the well-known path on the same origin as the resource.
 const RESOURCE_METADATA_URL = `${originOf(RESOURCE)}/.well-known/oauth-protected-resource`;
@@ -75,24 +76,29 @@ export async function requireAuth(
   }
 
   const token = header.slice('Bearer '.length).trim();
+  let subject: string;
   try {
     const { payload } = await jwtVerify(token, jwks, {
       issuer: ISSUER,
       audience: RESOURCE,
+      // jose checks exp only when present; a token without it would never expire.
+      requiredClaims: ['exp', 'sub'],
     });
-
-    if (ALLOWED_SUBJECTS.length > 0 && !ALLOWED_SUBJECTS.includes(payload.sub ?? '')) {
-      // Valid token, but not you. Log the subject so you can allowlist yourself.
-      process.stderr.write(`[auth] forbidden subject: ${payload.sub ?? '(none)'}\n`);
-      res.status(403).json({ error: 'forbidden' });
-      return;
-    }
-
-    next();
+    subject = String(payload.sub);
   } catch (err) {
     process.stderr.write(`[auth] token rejected: ${String(err)}\n`);
     unauthorized(res, 'invalid_token');
+    return;
   }
+
+  if (!ALLOWED_SUBJECTS.includes(subject)) {
+    // Valid token, but not you. Log the subject so you can allowlist yourself.
+    process.stderr.write(`[auth] forbidden subject: ${subject}\n`);
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
+
+  next();
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

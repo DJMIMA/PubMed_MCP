@@ -119,8 +119,8 @@ With an API key, the rate limit goes from 3 to 8 req/s.
 2. Set it in the `NCBI_API_KEY` environment variable (see the client-specific settings below)
 
 When an MCP client starts the server locally, pass the key in the `env` section of the client configuration.
-`.env` is read from the current directory at startup, so when a client starts the server, the `.env` in
-the project root may not be read.
+The server reads `.env` only from its own package root (the repository root if you [built from source](#building-from-source)),
+never from the directory it is started in, so a `.env` in a project open in your MCP client cannot change its settings.
 
 Use an API key owned and managed by the person or organization running this server.
 The repository does not ship an API key. When a response includes the `echo` from the NCBI API,
@@ -279,14 +279,14 @@ PORT=8080 npm run dev
 # → http://localhost:8080/health Health check
 ```
 
-HTTP mode reads `OAUTH_ISSUER`, `OAUTH_JWKS_URL`, and `MCP_RESOURCE_URL` at startup, and exits with the following error if any of them is missing:
+HTTP mode reads `OAUTH_ISSUER`, `OAUTH_JWKS_URL`, `MCP_RESOURCE_URL`, and `ALLOWED_SUBJECTS` at startup, and exits with the following error if any of them is missing:
 
 ```
 Fatal error: Error: Missing required environment variable: OAUTH_ISSUER
 ```
 
 Set these values in `.env` before starting (see [Environment variables](#environment-variables) for what each one means).
-To check `/health` or the 401 response, placeholder values in URL form are enough to start the server, but to actually call `/mcp`
+To check `/health` or the 401 response, placeholder values (in URL form for the URLs) are enough to start the server, but to actually call `/mcp`
 you need an access token issued with `MCP_RESOURCE_URL` as its `aud`. To try the tools without authentication, use stdio mode.
 
 ---
@@ -543,9 +543,9 @@ gcloud run deploy pubmed-mcp \
 | `OAUTH_ISSUER` | The `issuer` from the authorization server metadata. It is compared with the token's `iss` exactly, so copy it as-is, including whether it has a trailing `/` |
 | `OAUTH_JWKS_URL` | The `jwks_uri` from the same metadata: the URL of the public keys used to verify token signatures |
 | `MCP_RESOURCE_URL` | The MCP endpoint URL you decided in step 5. It is compared with the token's `aud`, and published as `resource` in `/.well-known/oauth-protected-resource` |
-| `ALLOWED_SUBJECTS` | A comma-separated list of user IDs (the token's `sub`) allowed to connect. If empty, every user who can get a valid token from AuthKit can connect |
+| `ALLOWED_SUBJECTS` | A comma-separated list of user IDs (the token's `sub`) allowed to connect. Required: without it, every user who can get a valid token from AuthKit could connect |
 
-If any of `OAUTH_ISSUER`, `OAUTH_JWKS_URL`, or `MCP_RESOURCE_URL` is missing, the server exits at startup with
+If any of `OAUTH_ISSUER`, `OAUTH_JWKS_URL`, `MCP_RESOURCE_URL`, or `ALLOWED_SUBJECTS` is missing, the server exits at startup with
 `Missing required environment variable: ...` and the deployment fails. If it fails, look for this message in the Cloud Run logs
 (if you set the variables in Cloud Console, also check for spaces around the variable names).
 
@@ -620,11 +620,11 @@ curl.exe -i "$CLOUD_RUN_URL/mcp" -X POST -H "Content-Type: application/json" `
 
 ### Step 8 — Add your user ID to ALLOWED_SUBJECTS
 
-With Dynamic Client Registration, anyone can register an OAuth client, so use `ALLOWED_SUBJECTS` to limit which users can connect
-(if it is empty, every user who can log in to AuthKit can use `/mcp`; if AuthKit allows sign-ups, that includes third parties).
+With Dynamic Client Registration, anyone can register an OAuth client, so `ALLOWED_SUBJECTS` limits which users can connect
+(without it, every user who can log in to AuthKit could use `/mcp`, including third parties if AuthKit allows sign-ups, so the server does not start without it).
 The value is the access token's `sub` (the WorkOS user ID, starting with `user_`).
 
-When `ALLOWED_SUBJECTS` is empty, `sub` is not logged. So connect once with the placeholder value in place, and find your `sub` in the log entry for the rejected request.
+The server logs the `sub` of users it rejects. So connect once with the placeholder value in place, and find your `sub` in the log entry for the rejected request.
 
 1. Connect from claude.ai or another client following [Client connection settings](#client-connection-settings) below, and log in with WorkOS AuthKit.
    Because your `sub` is not in `ALLOWED_SUBJECTS`, the connection fails with 403, and the server logs `[auth] forbidden subject: ...`.
@@ -796,7 +796,7 @@ The first release is published by hand, because Trusted Publishing can't be conf
 | `OAUTH_ISSUER` | Required in HTTP mode | The authorization server's issuer (`issuer` in its metadata). Compared with the token's `iss` |
 | `OAUTH_JWKS_URL` | Required in HTTP mode | The URL of the authorization server's JWKS (`jwks_uri` in the same metadata). Used to verify token signatures |
 | `MCP_RESOURCE_URL` | Required in HTTP mode | The public URL of the MCP endpoint. Compared with the token's `aud`, and published as `resource` in the Protected Resource Metadata |
-| `ALLOWED_SUBJECTS` | No (recommended) | A comma-separated list of token `sub` values allowed to connect. If empty, every user with a valid token is allowed |
+| `ALLOWED_SUBJECTS` | Required in HTTP mode | A comma-separated list of token `sub` values allowed to connect |
 
 `OAUTH_ISSUER`, `OAUTH_JWKS_URL`, `MCP_RESOURCE_URL`, and `ALLOWED_SUBJECTS` are used only in HTTP mode and are not needed in stdio mode.
 See steps 5–8 of [Deploying to Google Cloud Run](#deploying-to-google-cloud-run) for how to choose their values.

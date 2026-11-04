@@ -39,4 +39,50 @@ describe('createServer', () => {
       { type: 'text', text: expect.stringContaining('"pmids":["12345"]') },
     ]);
   });
+
+  // NCBI splits IDs on commas, so a value such as "1,2" would carry extra IDs
+  // past each tool's per-request limit.
+  it.each([
+    ['get_article_metadata', { pmids: ['1,2'] }],
+    ['find_related_articles', { pmids: ['1,2'] }],
+    ['find_related_articles', { pmids: Array.from({ length: 201 }, (_, i) => String(i + 1)) }],
+    ['get_copyright_status', { pmids: ['1 2'] }],
+    ['get_full_text_article', { pmc_ids: ['PMC1,PMC2'] }],
+    ['convert_article_ids', { ids: ['10.1000/a,10.1000/b'] }],
+  ])('rejects %s arguments that exceed the ID limit, without calling NCBI', async (name, args) => {
+    const ncbiClient = { efetch: vi.fn(), elink: vi.fn(), idConvert: vi.fn() };
+
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await createServer(ncbiClient as unknown as NcbiClient).connect(serverTransport);
+    const mcpClient = new Client({ name: 'test-client', version: '1.0.0' });
+    await mcpClient.connect(clientTransport);
+
+    const result = await mcpClient.callTool({ name, arguments: args });
+    await mcpClient.close();
+
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toMatch(/validation/i);
+    for (const method of Object.values(ncbiClient)) expect(method).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['get_article_metadata', { pmids: ['33526711'] }],
+    ['get_full_text_article', { pmc_ids: ['PMC7984072', '7984072'] }],
+    ['convert_article_ids', { ids: ['10.1038/s41586-021-03819-2'], id_type: 'doi' }],
+  ])('accepts well-formed IDs for %s', async (name, args) => {
+    const ncbiClient = {
+      efetch: vi.fn().mockResolvedValue('<PubmedArticleSet/>'),
+      idConvert: vi.fn().mockResolvedValue({ request: {}, records: [] }),
+    };
+
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await createServer(ncbiClient as unknown as NcbiClient).connect(serverTransport);
+    const mcpClient = new Client({ name: 'test-client', version: '1.0.0' });
+    await mcpClient.connect(clientTransport);
+
+    const result = await mcpClient.callTool({ name, arguments: args });
+    await mcpClient.close();
+
+    expect(result.isError).toBeFalsy();
+  });
 });

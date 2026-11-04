@@ -24,13 +24,14 @@ PubMed_MCP/
 ├── Dockerfile             # Cloud Run image (HTTP mode)
 ├── src/
 │   ├── index.ts           # Entrypoint: stdio, or HTTP when PORT is set
+│   ├── http.ts            # Express app for HTTP mode
 │   ├── server.ts          # Tool registration (names and descriptions)
 │   ├── auth.ts            # OAuth bearer-token checks for HTTP mode
 │   ├── cli.ts, cli/       # pubmed CLI (commands.ts, run.ts)
 │   ├── tools/             # One file per tool: Zod schema + handler
 │   ├── pubmed/            # NCBI E-utilities client and response types
-│   └── utils/xml.ts       # PubMed/PMC XML parsing
-└── tests/                 # cli/, pubmed/, tools/, utils/, server.test.ts
+│   └── utils/             # xml.ts (PubMed/PMC XML parsing), ids.ts (ID schemas)
+└── tests/                 # cli/, pubmed/, tools/, utils/, server.test.ts, http.test.ts
 ```
 
 ---
@@ -93,7 +94,7 @@ The SDK validates arguments against the Zod shape and generates the JSON Schema 
 | `NCBI_API_KEY`   | No       | NCBI API key for higher rate limits     |
 | `PORT`           | No       | Port to run the MCP server (default: stdio transport) |
 | `OAUTH_ISSUER`, `OAUTH_JWKS_URL`, `MCP_RESOURCE_URL` | HTTP mode | OAuth settings; the server exits at startup in HTTP mode if any is empty |
-| `ALLOWED_SUBJECTS` | No     | Comma-separated token `sub` values allowed to use `/mcp` (HTTP mode) |
+| `ALLOWED_SUBJECTS` | HTTP mode | Comma-separated token `sub` values allowed to use `/mcp`; the server exits at startup in HTTP mode if it is empty |
 
 ### Error Handling
 

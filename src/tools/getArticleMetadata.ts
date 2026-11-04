@@ -9,6 +9,7 @@ import { z } from 'zod';
 import type { NcbiClient } from '../pubmed/client.js';
 import type { ArticleAuthor, GetArticleMetadataResponse } from '../pubmed/types.js';
 import { IMPORTANT_LEGAL_NOTICE } from '../pubmed/types.js';
+import { pmidSchema } from '../utils/ids.js';
 import { parsePubmedEfetchXml } from '../utils/xml.js';
 
 /** PMIDs per request; the CLI splits longer lists into batches of this size. */
@@ -19,7 +20,7 @@ export type AuthorMode = (typeof AUTHOR_MODES)[number];
 
 export const getArticleMetadataSchema = {
   pmids: z
-    .array(z.string().min(1))
+    .array(pmidSchema)
     .min(1)
     .max(MAX_METADATA_PMIDS)
     .describe(
