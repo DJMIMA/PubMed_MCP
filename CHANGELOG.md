@@ -5,6 +5,8 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-11-04
+
 ### 追加
 
 - CLI に `-v` / `--version` を追加しました。インストールされている `pubmed` のバージョンを表示します。
@@ -57,7 +59,8 @@ npm パッケージ [`@djmima/pubmed-mcp`](https://www.npmjs.com/package/@djmima
 - 同じツールをシェルから実行する `pubmed` CLI と、エージェント向けの Skill（`skills/pubmed-cli`）
 - MIT License
 
-[Unreleased]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.0.0...v1.0.1
