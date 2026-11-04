@@ -5,6 +5,8 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-04
+
 ### 変更
 
 - **HTTP モードで `ALLOWED_SUBJECTS` を必須にしました。** 未設定または空のときは起動時に終了します。これまでは空のとき、認可サーバー（WorkOS AuthKit）で有効なトークンを取得できるユーザー全員が `/mcp` を使えました。
@@ -47,7 +49,8 @@ npm パッケージ [`@djmima/pubmed-mcp`](https://www.npmjs.com/package/@djmima
 - 同じツールをシェルから実行する `pubmed` CLI と、エージェント向けの Skill（`skills/pubmed-cli`）
 - MIT License
 
-[Unreleased]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/DJMIMA/PubMed_MCP/releases/tag/v1.0.0
