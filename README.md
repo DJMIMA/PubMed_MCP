@@ -306,7 +306,7 @@ but extracting only the PMID, year, and title brings it down to 3.2 KB (about 1/
 npm install -g @djmima/pubmed-mcp
 ```
 
-You're done when `pubmed --help` prints the help.
+You're done when `pubmed --help` prints the help. `pubmed --version` (or `-v`) prints the installed version.
 
 The NCBI API key is read from the `NCBI_API_KEY` environment variable. Add
 `export NCBI_API_KEY=your_api_key_here` to your shell configuration file (`~/.bashrc`, `~/.zshrc`, etc.), or on Windows run
