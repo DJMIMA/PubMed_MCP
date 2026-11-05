@@ -183,7 +183,7 @@ export class NcbiClient {
         },
       })
     );
-    return (response.data as { esearchresult: EsearchResult }).esearchresult;
+    return parseEsearchResult(response.data, this.apiKey);
   }
 
   /**
@@ -394,6 +394,25 @@ function wrapAxiosError(err: unknown, operation: string, apiKey: string | undefi
   }
   if (err instanceof Error) return err;
   return new Error(`Unknown error during NCBI ${operation}`);
+}
+
+/**
+ * Pull esearchresult out of an ESearch response. When its search backend
+ * fails, NCBI can answer HTTP 200 with only `esearchresult.ERROR` and no
+ * idlist; report that message instead of returning a result without IDs.
+ */
+function parseEsearchResult(data: unknown, apiKey: string | undefined): EsearchResult {
+  const result = (data as { esearchresult?: Partial<EsearchResult> & { ERROR?: unknown } } | null)
+    ?.esearchresult;
+  if (typeof result?.ERROR === 'string' && result.ERROR) {
+    throw new NcbiApiError(`NCBI esearch returned an error: ${redactApiKey(result.ERROR, apiKey)}`);
+  }
+  if (!Array.isArray(result?.idlist)) {
+    throw new NcbiParseError(
+      `NCBI esearch response has no idlist: ${redactApiKey(describeResponseBody(data), apiKey)}`
+    );
+  }
+  return result as EsearchResult;
 }
 
 const MAX_ERROR_BODY_LENGTH = 300;

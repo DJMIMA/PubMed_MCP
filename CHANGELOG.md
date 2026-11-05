@@ -5,6 +5,10 @@
 
 ## [Unreleased]
 
+### 修正
+
+- `search_articles`（CLI の `pubmed search`）で、NCBI の検索サーバーの障害時に `Cannot read properties of undefined (reading 'length')` で失敗していたのを、NCBI が返したエラーメッセージ（例: `Search is temporarily unavailable`）を返すようにしました。NCBI は障害時に HTTP 200 で ID の一覧のない応答を返すことがあり、これを検索結果として扱っていました。
+
 ## [1.2.0] - 2026-11-04
 
 ### 追加
