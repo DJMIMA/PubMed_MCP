@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import axios from 'axios';
-import { NcbiClient, NcbiApiError, NcbiNetworkError } from '../../src/pubmed/client.js';
+import { NcbiClient, NcbiApiError, NcbiNetworkError, NcbiParseError } from '../../src/pubmed/client.js';
 
 vi.mock('axios');
 
@@ -112,6 +112,30 @@ describe('NcbiClient', () => {
       vi.spyOn(axios, 'isAxiosError').mockReturnValue(true);
 
       await expect(client.esearch({ term: 'test' })).rejects.toThrow(NcbiApiError);
+    });
+
+    it('throws NcbiApiError with the NCBI message when esearchresult has ERROR', async () => {
+      // NCBI reports backend failures this way, with no idlist.
+      mockedAxios.get = vi.fn().mockResolvedValue({
+        data: {
+          header: { type: 'esearch', version: '0.3' },
+          esearchresult: {
+            ERROR: 'Search Backend failed: Search is temporarily unavailable. Please try again later.',
+          },
+        },
+      });
+
+      const error = await client.esearch({ term: 'test' }).catch((err: unknown) => err);
+      expect(error).toBeInstanceOf(NcbiApiError);
+      expect((error as Error).message).toBe(
+        'NCBI esearch returned an error: Search Backend failed: Search is temporarily unavailable. Please try again later.'
+      );
+    });
+
+    it('throws NcbiParseError when the response has no idlist', async () => {
+      mockedAxios.get = vi.fn().mockResolvedValue({ data: '<html>Server Error</html>' });
+
+      await expect(client.esearch({ term: 'test' })).rejects.toThrow(NcbiParseError);
     });
   });
 
