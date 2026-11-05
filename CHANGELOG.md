@@ -5,6 +5,8 @@
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-11-05
+
 ### 修正
 
 - `search_articles`（CLI の `pubmed search`）で、NCBI の検索サーバーの障害時に `Cannot read properties of undefined (reading 'length')` で失敗していたのを、NCBI が返したエラーメッセージ（例: `Search is temporarily unavailable`）を返すようにしました。NCBI は障害時に HTTP 200 で ID の一覧のない応答を返すことがあり、これを検索結果として扱っていました。
@@ -63,7 +65,8 @@ npm パッケージ [`@djmima/pubmed-mcp`](https://www.npmjs.com/package/@djmima
 - 同じツールをシェルから実行する `pubmed` CLI と、エージェント向けの Skill（`skills/pubmed-cli`）
 - MIT License
 
-[Unreleased]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.0.1...v1.0.2
