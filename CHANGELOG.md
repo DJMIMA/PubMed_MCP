@@ -5,6 +5,8 @@
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-11-06
+
 ### 変更
 
 - npm パッケージの説明に CLI を加えました。
@@ -69,7 +71,8 @@ npm パッケージ [`@djmima/pubmed-mcp`](https://www.npmjs.com/package/@djmima
 - 同じツールをシェルから実行する `pubmed` CLI と、エージェント向けの Skill（`skills/pubmed-cli`）
 - MIT License
 
-[Unreleased]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.2...HEAD
+[1.2.2]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.0.2...v1.1.0
