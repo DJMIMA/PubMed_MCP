@@ -1,4 +1,4 @@
-<h1 align="center">PubMed MCP</h1>
+<h1 align="center">PubMed MCP/CLI</h1>
 
 <p align="center"><strong>AI アシスタントから、医学・生命科学の文献を検索して読む。</strong></p>
 
@@ -23,7 +23,7 @@
 
 <p align="center"><a href="README.md">English</a> · <strong>日本語</strong></p>
 
-**無料でオープンソース。自分のパソコンで動かせます。** NCBI E-utilities API を通じて、Claude などの LLM クライアントから [PubMed](https://pubmed.ncbi.nlm.nih.gov/) と [PubMed Central（PMC）](https://www.ncbi.nlm.nih.gov/pmc/) を扱えるようにする [MCP（Model Context Protocol）](https://modelcontextprotocol.io/) サーバーです。アカウントは不要で、NCBI API キーも任意です。
+**無料でオープンソース。自分のパソコンで動かせます。** NCBI E-utilities API を通じて、Claude や Codex などの LLM クライアントから [PubMed](https://pubmed.ncbi.nlm.nih.gov/) と [PubMed Central（PMC）](https://www.ncbi.nlm.nih.gov/pmc/) を扱えるようにする [MCP（Model Context Protocol）](https://modelcontextprotocol.io/) サーバーとコマンドラインツールです。アカウントは不要で、NCBI API キーも任意です。
 
 ## Tools
 
