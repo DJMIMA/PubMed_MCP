@@ -1,6 +1,6 @@
 {
   "name": "@djmima/pubmed-mcp",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "MCP server and CLI for searching and reading PubMed and PubMed Central literature",
   "license": "MIT",
   "author": "DJ MIMA",

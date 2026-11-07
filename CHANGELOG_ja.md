@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-11-07
+
 ### 追加
 
 - 変更履歴の英語版を追加しました。`CHANGELOG.md` が英語版、`CHANGELOG_ja.md` が日本語版です。どちらも npm パッケージに含めます。
@@ -81,7 +83,8 @@ npm パッケージ [`@djmima/pubmed-mcp`](https://www.npmjs.com/package/@djmima
 - 同じツールをシェルから実行する `pubmed` CLI と、エージェント向けの Skill（`skills/pubmed-cli`）
 - MIT License
 
-[Unreleased]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.2...HEAD
+[Unreleased]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.3...HEAD
+[1.2.3]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.1.0...v1.2.0
