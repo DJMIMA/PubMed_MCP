@@ -32,7 +32,8 @@
     "dist",
     "skills",
     "README_ja.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "CHANGELOG_ja.md"
   ],
   "scripts": {
     "build": "tsc",

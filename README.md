@@ -766,12 +766,12 @@ Publishing a Release on GitHub makes [`.github/workflows/release.yml`](.github/w
 The new version is not published until a maintainer approves it on npmjs.com with 2FA. This way, a compromised workflow or dependency cannot publish on its own.
 Because the workflow uses npm [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/) (OIDC), no npm token is stored in the repository.
 
-PRs that make changes add them to `[Unreleased]` in [`CHANGELOG.md`](CHANGELOG.md). To release:
+PRs that make changes add the same entry to `[Unreleased]` in both [`CHANGELOG.md`](CHANGELOG.md) (English) and [`CHANGELOG_ja.md`](CHANGELOG_ja.md) (Japanese). To release:
 
 1. On a release branch, run `npm version patch --no-git-tag-version` (or `minor` / `major`) to bump the version in `package.json`
    (GitHub adds the tag in step 3, so don't tag here)
-2. Move the contents of `[Unreleased]` in `CHANGELOG.md` under a heading for the new version (for example, `## [1.0.1] - 2026-11-01`), update the comparison links at the end, then open a PR and merge it into main
-3. On GitHub, publish a Release targeting main with the tag `v<version>` (for example, `v1.0.1`). Paste the corresponding part of `CHANGELOG.md` into the release notes
+2. In both `CHANGELOG.md` and `CHANGELOG_ja.md`, move the contents of `[Unreleased]` under a heading for the new version (for example, `## [1.0.1] - 2026-11-01`), update the comparison links at the end, then open a PR and merge it into main
+3. On GitHub, publish a Release targeting main with the tag `v<version>` (for example, `v1.0.1`). Paste the corresponding part of `CHANGELOG.md` (English) into the release notes
 4. The workflow checks that the tag matches the version in `package.json`, runs typecheck, lint, tests, and build, and then stages the publish
 5. Review it on the **Staged Packages** tab of the package page on npmjs.com and click **Approve** (2FA required). You can also approve from the CLI with `npm stage approve <stage-id>`
 

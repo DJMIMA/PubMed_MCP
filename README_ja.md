@@ -10,7 +10,7 @@
   <a href="#使い方">使い方</a> ·
   <a href="#cli">CLI</a> ·
   <a href="#google-cloud-run-へのデプロイ">デプロイ</a> ·
-  <a href="CHANGELOG.md">変更履歴</a>
+  <a href="CHANGELOG_ja.md">変更履歴</a>
 </p>
 
 <p align="center">
@@ -766,12 +766,12 @@ GitHub で Release を公開すると、[`.github/workflows/release.yml`](.githu
 メンテナーが npmjs.com で 2FA を使って承認するまで、新しいバージョンは公開されません。ワークフローや依存パッケージが乗っ取られても、それだけでは公開できないようにするためです。
 npm の [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)（OIDC）を使うため、npm のトークンはリポジトリに保存しません。
 
-変更を加える PR では、[`CHANGELOG.md`](CHANGELOG.md) の `[Unreleased]` に内容を追記しておきます。リリースの手順は次のとおりです。
+変更を加える PR では、[`CHANGELOG.md`](CHANGELOG.md)（英語）と [`CHANGELOG_ja.md`](CHANGELOG_ja.md)（日本語）の両方の `[Unreleased]` に同じ内容を追記しておきます。リリースの手順は次のとおりです。
 
 1. リリース用のブランチで `npm version patch --no-git-tag-version`（または `minor` / `major`）を実行し、`package.json` のバージョンを上げる
    （タグは手順 3 で GitHub が付けるため、ここでは付けません）
-2. `CHANGELOG.md` の `[Unreleased]` の内容を新しいバージョンの見出し（例: `## [1.0.1] - 2026-11-01`）の下に移し、末尾の比較リンクを更新して、PR を作って main にマージする
-3. GitHub で、main を対象に `v<バージョン>`（例: `v1.0.1`）のタグを付けた Release を公開する。リリースノートには `CHANGELOG.md` の該当部分を貼る
+2. `CHANGELOG.md` と `CHANGELOG_ja.md` のそれぞれで、`[Unreleased]` の内容を新しいバージョンの見出し（例: `## [1.0.1] - 2026-11-01`）の下に移し、末尾の比較リンクを更新して、PR を作って main にマージする
+3. GitHub で、main を対象に `v<バージョン>`（例: `v1.0.1`）のタグを付けた Release を公開する。リリースノートには `CHANGELOG.md`（英語）の該当部分を貼る
 4. ワークフローがタグと `package.json` のバージョンが一致するか確かめ、型チェック・lint・テスト・ビルドを通してから公開を申請する
 5. npmjs.com のパッケージページの **Staged Packages** タブで内容を確認し、**Approve** を押す（2FA が必要）。CLI では `npm stage approve <stage-id>` でも承認できる
 

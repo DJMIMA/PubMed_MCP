@@ -1,78 +1,84 @@
-# 変更履歴
+# Changelog
 
-このプロジェクトの主な変更を記録します。
-書式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に、バージョン番号は [セマンティック バージョニング](https://semver.org/lang/ja/) に従います。
+**English** · [日本語](CHANGELOG_ja.md)
+
+All notable changes to this project are recorded in this file.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### 修正
+### Added
 
-- npm パッケージに日本語版の README（`README_ja.md`）が含まれていなかったのを、含めるようにしました。
+- Added an English changelog. `CHANGELOG.md` is now in English and `CHANGELOG_ja.md` in Japanese; both are included in the npm package.
+
+### Fixed
+
+- The npm package now includes the Japanese README (`README_ja.md`), which was missing.
 
 ## [1.2.2] - 2026-11-06
 
-### 変更
+### Changed
 
-- npm パッケージの説明に CLI を加えました。
+- The npm package description now mentions the CLI.
 
 ## [1.2.1] - 2026-11-05
 
-### 修正
+### Fixed
 
-- `search_articles`（CLI の `pubmed search`）で、NCBI の検索サーバーの障害時に `Cannot read properties of undefined (reading 'length')` で失敗していたのを、NCBI が返したエラーメッセージ（例: `Search is temporarily unavailable`）を返すようにしました。NCBI は障害時に HTTP 200 で ID の一覧のない応答を返すことがあり、これを検索結果として扱っていました。
+- `search_articles` (`pubmed search` in the CLI) failed with `Cannot read properties of undefined (reading 'length')` when NCBI's search servers had an outage. It now returns the error message NCBI sent (for example, `Search is temporarily unavailable`). During outages NCBI can answer with HTTP 200 and no list of IDs, and this response was treated as a search result.
 
 ## [1.2.0] - 2026-11-04
 
-### 追加
+### Added
 
-- CLI に `-v` / `--version` を追加しました。インストールされている `pubmed` のバージョンを表示します。
+- Added `-v` / `--version` to the CLI. It prints the version of the installed `pubmed`.
 
-### 修正
+### Fixed
 
-- MCP サーバーが `initialize` の応答（`serverInfo.version`）でバージョンを常に `1.0.0` と返していたのを、`package.json` のバージョンを返すようにしました。
+- The MCP server always reported its version as `1.0.0` in the `initialize` response (`serverInfo.version`). It now reports the version in `package.json`.
 
 ## [1.1.0] - 2026-11-04
 
-### 変更
+### Changed
 
-- **HTTP モードで `ALLOWED_SUBJECTS` を必須にしました。** 未設定または空のときは起動時に終了します。これまでは空のとき、認可サーバー（WorkOS AuthKit）で有効なトークンを取得できるユーザー全員が `/mcp` を使えました。
-- HTTP モードで、`/mcp` への GET と DELETE に 405 を返すようにしました。ステートレスなサーバーには GET で開く SSE ストリームに送るものがなく、開いたままのストリームがサーバーインスタンスと Cloud Run のリクエストを占有していました。
+- **`ALLOWED_SUBJECTS` is now required in HTTP mode.** The server exits at startup if it is unset or empty. Previously, when it was empty, anyone who could get a valid token from the authorization server (WorkOS AuthKit) could use `/mcp`.
+- In HTTP mode, GET and DELETE requests to `/mcp` now return 405. A stateless server has nothing to send on an SSE stream opened by GET, and open streams tied up server instances and Cloud Run requests.
 
-### セキュリティ
+### Security
 
-- MCP サーバーが `.env` を起動時のカレントディレクトリから読み込んでいたのをやめ、パッケージ自身のルート（ソースからビルドした場合はリポジトリ直下）からだけ読み込むようにしました（CLI はもともとこの動作です）。MCP クライアントは開いているプロジェクトのディレクトリでサーバーを起動するため、そのプロジェクトの `.env` に `PORT` があると HTTP モードで起動し、`HTTPS_PROXY` と `NODE_TLS_REJECT_UNAUTHORIZED=0` があると NCBI への通信（API キーを含む）を第三者のプロキシが読み書きできました。
-- ID を受け取るツール（`get_article_metadata`、`find_related_articles`、`get_copyright_status`、`get_full_text_article`、`convert_article_ids`）で、1 つの値に 1 つの ID だけを受け付けるようにしました。NCBI はカンマを ID の区切りとして扱うため、`"1,2,3"` のような値で 1 回あたりの上限を超える件数を取得できました。上限のなかった `find_related_articles` の `pmids` も 200 件までにしました。
-- `lookup_article_by_citation` で、引用の各項目に含まれる `|` と改行を空白に置き換えるようにしました。どちらも ECitMatch の区切り文字なので、項目がずれたり別の引用として送られたりして、結果が別の引用に対応づけられるおそれがありました。
-- NCBI へのリクエストに 60 秒のタイムアウトを設けました。応答のない接続で、ツールの呼び出し（HTTP モードではクライアントのリクエスト）が止まったままになることがなくなります。
-- NCBI へのリクエストがリダイレクトされたときは、HTTPS で `*.ncbi.nlm.nih.gov` に向かうものだけをたどるようにしました。API キーはクエリ文字列に含まれ、リダイレクト先にも引き継がれます。
-- エラーメッセージの中の API キーは、NCBI が返した本文のどこに現れても伏せるようにしました。ネットワークエラーには、API キーを含む axios のエラーオブジェクトを付けないようにしました。
-- HTTP モードで、`exp` と `sub` のないアクセストークンを拒否するようにしました。
-- HTTP モードで、リクエスト本文の JSON をトークンの検証後に解析するようにしました。不正な形式や大きすぎる本文などのエラーには、スタックトレースを含む HTML ではなく JSON を返し、`X-Powered-By` ヘッダーも送らないようにしました。Docker イメージでは `NODE_ENV=production` を設定し、依存パッケージのインストールスクリプトを実行しないようにしました。
-- `@modelcontextprotocol/sdk`、`axios`、`express` の最低バージョンを、既知の脆弱性の修正を含むバージョンに上げました。
-- GitHub Actions のアクションをコミット SHA で固定し、`actions/checkout` が認証情報を `.git` に残さないようにしました。
+- The MCP server no longer loads `.env` from the current directory at startup. It loads it only from the package's own root (the repository root when built from source), as the CLI already did. MCP clients start the server in the directory of the open project, so a `PORT` in that project's `.env` started the server in HTTP mode, and `HTTPS_PROXY` with `NODE_TLS_REJECT_UNAUTHORIZED=0` let a third-party proxy read and modify traffic to NCBI, including the API key.
+- Tools that take IDs (`get_article_metadata`, `find_related_articles`, `get_copyright_status`, `get_full_text_article`, `convert_article_ids`) now accept only one ID per value. NCBI treats commas as ID separators, so a value such as `"1,2,3"` could fetch more records than the per-call limit allows. `pmids` in `find_related_articles`, which had no limit, is now capped at 200.
+- `lookup_article_by_citation` now replaces `|` and line breaks in each citation field with spaces. Both are ECitMatch delimiters, so they could shift fields or split a citation in two, and results could be matched to a different citation.
+- Requests to NCBI now time out after 60 seconds, so a connection that never answers no longer leaves a tool call (in HTTP mode, the client's request) hanging.
+- When a request to NCBI is redirected, only redirects over HTTPS to `*.ncbi.nlm.nih.gov` are followed. The API key is in the query string and is carried over to the redirect target.
+- The API key is now masked in error messages wherever it appears in the body NCBI returned. Network errors no longer carry the axios error object, which contains the API key.
+- In HTTP mode, access tokens without `exp` or `sub` are rejected.
+- In HTTP mode, the JSON request body is parsed after the token is verified. Errors such as malformed or oversized bodies return JSON instead of HTML with a stack trace, and the `X-Powered-By` header is no longer sent. The Docker image sets `NODE_ENV=production` and does not run install scripts of dependencies.
+- Raised the minimum versions of `@modelcontextprotocol/sdk`, `axios`, and `express` to releases that fix known vulnerabilities.
+- Pinned GitHub Actions to commit SHAs, and `actions/checkout` no longer leaves credentials in `.git`.
 
 ## [1.0.2] - 2026-11-03
 
-### 変更
+### Changed
 
-- README を英語にしました。日本語版は `README_ja.md` に移し、両方の冒頭に npm のバージョン・パッケージサイズ・ライセンス・Node.js のバージョン・CI のバッジと、言語の切り替えリンクを付けました。
+- The README is now in English. The Japanese version moved to `README_ja.md`. Both start with badges for the npm version, package size, license, Node.js version, and CI, plus links to switch languages.
 
 ## [1.0.1] - 2026-11-01
 
-### 変更
+### Changed
 
-- NCBI へのリクエストに付ける連絡先（`email` パラメータ）を、ダミーの `pubmed-mcp@example.com` から開発者の転送用アドレスに変更しました。NCBI の E-utilities 利用ガイドラインは、`email` に利用者ではなく開発者のアドレスを使うよう求めています。
-- README の「ライセンス」の節で、NCBI の免責事項・著作権表示へのリンクをはっきり示しました。
+- Changed the contact address sent to NCBI (the `email` parameter) from the placeholder `pubmed-mcp@example.com` to the developer's forwarding address. NCBI's E-utilities usage guidelines ask for the developer's address in `email`, not the end user's.
+- The "License" section of the README now links clearly to NCBI's disclaimer and copyright notice.
 
 ## [1.0.0] - 2026-10-29
 
-npm パッケージ [`@djmima/pubmed-mcp`](https://www.npmjs.com/package/@djmima/pubmed-mcp) として最初に公開した版です。
+The first release, published to npm as [`@djmima/pubmed-mcp`](https://www.npmjs.com/package/@djmima/pubmed-mcp).
 
-### 追加
+### Added
 
-- 7 つの MCP ツール: `search_articles`、`get_article_metadata`、`find_related_articles`、`lookup_article_by_citation`、`convert_article_ids`、`get_full_text_article`、`get_copyright_status`
-- stdio と、OAuth で保護した Streamable HTTP の 2 つのトランスポート（`PORT` を設定すると HTTP モード）
-- 同じツールをシェルから実行する `pubmed` CLI と、エージェント向けの Skill（`skills/pubmed-cli`）
+- Seven MCP tools: `search_articles`, `get_article_metadata`, `find_related_articles`, `lookup_article_by_citation`, `convert_article_ids`, `get_full_text_article`, `get_copyright_status`
+- Two transports: stdio, and Streamable HTTP protected by OAuth (HTTP mode when `PORT` is set)
+- The `pubmed` CLI, which runs the same tools from the shell, and an agent skill (`skills/pubmed-cli`)
 - MIT License
 
 [Unreleased]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.2...HEAD
