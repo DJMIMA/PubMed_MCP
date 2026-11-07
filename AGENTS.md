@@ -20,7 +20,7 @@ PubMed_MCP/
 ├── .github/workflows/     # ci.yml (typecheck, lint, test, build), audit.yml (npm audit), release.yml (npm stage publish)
 ├── skills/pubmed-cli/SKILL.md  # Agent skill for the pubmed CLI
 ├── README.md, README_ja.md  # User docs (English, Japanese)
-├── CHANGELOG.md           # Release notes (Japanese, Keep a Changelog)
+├── CHANGELOG.md, CHANGELOG_ja.md  # Release notes (English, Japanese; Keep a Changelog)
 ├── Dockerfile             # Cloud Run image (HTTP mode)
 ├── src/
 │   ├── index.ts           # Entrypoint: stdio, or HTTP when PORT is set
@@ -148,7 +148,7 @@ To run the MCP server locally with Codex Desktop or another MCP client, configur
 
 - `.github/workflows/ci.yml` runs `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` on every pull request and on pushes to `main`.
 - `.github/workflows/audit.yml` runs `npm audit --omit=dev --audit-level=high` on pull requests, on pushes to `main`, and weekly. A newly published advisory can fail it without any code change; fix the dependencies rather than changing the threshold.
-- `.github/workflows/release.yml` stages a publish to npm when a GitHub Release is published, using npm trusted publishing (OIDC; no token in the repository). The version goes live only after a maintainer approves it on npmjs.com with 2FA; the trusted publisher allows `npm stage publish` only. The release tag must be `v` plus the `package.json` version, and the workflow skips publishing when that version is already on npm. The workflow runs typecheck, lint, tests, and build itself before staging (`prepublishOnly` also runs them for a manual `npm publish`). Only `dist/`, `skills/`, `README_ja.md`, and `CHANGELOG.md` (plus `README.md` and `LICENSE`, which npm always includes) go into the package, as set by `files` in `package.json`.
+- `.github/workflows/release.yml` stages a publish to npm when a GitHub Release is published, using npm trusted publishing (OIDC; no token in the repository). The version goes live only after a maintainer approves it on npmjs.com with 2FA; the trusted publisher allows `npm stage publish` only. The release tag must be `v` plus the `package.json` version, and the workflow skips publishing when that version is already on npm. The workflow runs typecheck, lint, tests, and build itself before staging (`prepublishOnly` also runs them for a manual `npm publish`). Only `dist/`, `skills/`, `README_ja.md`, `CHANGELOG.md`, and `CHANGELOG_ja.md` (plus `README.md` and `LICENSE`, which npm always includes) go into the package, as set by `files` in `package.json`.
 
 ---
 
@@ -180,5 +180,5 @@ To run the MCP server locally with Codex Desktop or another MCP client, configur
 - Run `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` (the same checks as CI) before committing any changes.
 - `CLAUDE.md` and `AGENTS.md` hold the same guidance; when you change one, make the same change in the other.
 - `README.md` (English) and `README_ja.md` (Japanese) hold the same content; when you change one, make the same change in the other.
-- Add user-visible changes to the `[Unreleased]` section of `CHANGELOG.md` (in Japanese, Keep a Changelog format) in the same PR. Releases follow the steps in the README section "Releasing to npm".
+- Add user-visible changes to the `[Unreleased]` section of both `CHANGELOG.md` (English) and `CHANGELOG_ja.md` (Japanese), in Keep a Changelog format, in the same PR; the two files hold the same entries. Releases follow the steps in the README section "Releasing to npm".
 - When in doubt about PubMed API behavior, cite the NCBI E-utilities documentation.
