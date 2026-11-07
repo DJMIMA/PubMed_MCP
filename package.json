@@ -31,6 +31,7 @@
   "files": [
     "dist",
     "skills",
+    "README_ja.md",
     "CHANGELOG.md"
   ],
   "scripts": {
