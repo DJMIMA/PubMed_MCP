@@ -7,14 +7,14 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { SignJWT, exportJWK, generateKeyPair, type JWTPayload, type KeyLike } from 'jose';
+import { SignJWT, exportJWK, generateKeyPair, type JWTPayload } from 'jose';
 import type { NcbiClient } from '../src/pubmed/client.js';
 
 const ISSUER = 'https://auth.example.test';
 const RESOURCE = 'https://pubmed-mcp.example.test/mcp';
 const ALLOWED_SUB = 'user_allowed';
 
-let privateKey: KeyLike;
+let privateKey: CryptoKey;
 let jwksServer: http.Server;
 let appServer: http.Server;
 let baseUrl: string;
