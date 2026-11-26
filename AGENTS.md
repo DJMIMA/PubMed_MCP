@@ -18,6 +18,7 @@ This file provides guidance for AI assistants (Codex and others) working in this
 PubMed_MCP/
 ├── AGENTS.md              # This file (CLAUDE.md holds the same guidance for Claude)
 ├── .github/workflows/     # ci.yml (typecheck, lint, test, build), audit.yml (npm audit), release.yml (npm stage publish)
+├── .github/dependabot.yml # Weekly update PRs for npm, GitHub Actions, and the Docker base image
 ├── skills/pubmed-cli/SKILL.md  # Agent skill for the pubmed CLI
 ├── README.md, README_ja.md  # User docs (English, Japanese)
 ├── CHANGELOG.md, CHANGELOG_ja.md  # Release notes (English, Japanese; Keep a Changelog)
@@ -148,6 +149,7 @@ To run the MCP server locally with Codex Desktop or another MCP client, configur
 
 - `.github/workflows/ci.yml` runs `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` on every pull request and on pushes to `main`.
 - `.github/workflows/audit.yml` runs `npm audit --omit=dev --audit-level=high` on pull requests, on pushes to `main`, and weekly. A newly published advisory can fail it without any code change; fix the dependencies rather than changing the threshold.
+- `.github/dependabot.yml` opens weekly update PRs for npm packages (minor and patch grouped), GitHub Actions (grouped; SHA pins and their version comments are updated together), and the Docker base image (major Node.js versions are ignored; move to a new LTS by hand). Each PR runs CI like any other.
 - `.github/workflows/release.yml` stages a publish to npm when a GitHub Release is published, using npm trusted publishing (OIDC; no token in the repository). The version goes live only after a maintainer approves it on npmjs.com with 2FA; the trusted publisher allows `npm stage publish` only. The release tag must be `v` plus the `package.json` version, and the workflow skips publishing when that version is already on npm. The workflow runs typecheck, lint, tests, and build itself before staging (`prepublishOnly` also runs them for a manual `npm publish`). Only `dist/`, `skills/`, `README_ja.md`, `CHANGELOG.md`, and `CHANGELOG_ja.md` (plus `README.md` and `LICENSE`, which npm always includes) go into the package, as set by `files` in `package.json`.
 
 ---
