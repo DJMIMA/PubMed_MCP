@@ -50,7 +50,7 @@
     "@modelcontextprotocol/sdk": "^1.32.2",
     "axios": "^1.20.0",
     "dotenv": "^17.3.1",
-    "express": "^4.22.3",
+    "express": "^5.3.0",
     "fast-xml-parser": "^5.11.2",
     "jose": "^5.10.0",
     "zod": "^4.6.7"
