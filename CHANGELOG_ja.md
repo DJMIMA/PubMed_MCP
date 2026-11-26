@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-11-26
+
 ### 変更
 
 - HTTP モードで使う Express を 4 から 5 に更新しました。MCP SDK はすでに Express 5 に依存しているため、インストールされる Express は 1 つになります。HTTP モードの動作は変わりません。
@@ -89,7 +91,8 @@ npm パッケージ [`@djmima/pubmed-mcp`](https://www.npmjs.com/package/@djmima
 - 同じツールをシェルから実行する `pubmed` CLI と、エージェント向けの Skill（`skills/pubmed-cli`）
 - MIT License
 
-[Unreleased]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.3...HEAD
+[Unreleased]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.4...HEAD
+[1.2.4]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.3...v1.2.4
 [1.2.3]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/DJMIMA/PubMed_MCP/compare/v1.2.0...v1.2.1
