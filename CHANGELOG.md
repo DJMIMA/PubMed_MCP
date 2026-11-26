@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Updated Express, used by HTTP mode, from 4 to 5. The MCP SDK already depends on Express 5, so only one copy of Express is now installed. HTTP mode behaves the same as before.
+- Updated jose, which verifies OAuth tokens in HTTP mode, from 5 to 6. Tokens are checked the same way as before.
 
 ## [1.2.3] - 2026-11-07
 
