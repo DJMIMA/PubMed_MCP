@@ -606,7 +606,9 @@ async function runBatches<P, R>(batches: P[], run: (params: P) => Promise<R>): P
       results.push(await run(params));
     } catch (err) {
       if (batches.length === 1) throw err;
-      throw new Error(`batch ${index + 1} of ${batches.length}: ${errorMessage(err)}`);
+      throw new Error(`batch ${index + 1} of ${batches.length}: ${errorMessage(err)}`, {
+        cause: err,
+      });
     }
   }
   return results;
